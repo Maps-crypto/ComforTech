@@ -1,0 +1,7 @@
+{
+  "name": "comforTech — Student Mental Health Support",
+  "description": "Anonymous and account-enabled multilingual mental health support for South African students with real-time Lelapa AI personalized recommendations and USSD offline fallback.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
