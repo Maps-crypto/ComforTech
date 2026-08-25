@@ -42,7 +42,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="font-bold text-[#1c1a16] text-lg tracking-tight flex items-center gap-1.5">
                   comforTech
                   <span className="text-[10px] uppercase tracking-wider font-mono px-2 py-0.5 bg-[#4f7c6f] text-white rounded-full font-semibold">
-                    Lelapa AI
+                    Vulavula AI
                   </span>
                 </div>
                 <div className="text-[11px] text-[#5c574c] hidden sm:block">
@@ -56,7 +56,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <nav className="hidden md:flex items-center gap-1 bg-[#e8e0d0]/50 p-1 rounded-xl">
             <button
               onClick={() => onSelectView('app')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 currentView === 'app'
                   ? 'bg-[#212b4a] text-white shadow-xs'
                   : 'text-[#5c574c] hover:text-[#1c1a16] hover:bg-[#e8e0d0]'
@@ -65,8 +65,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               Overview & AI Radar
             </button>
             <button
+              onClick={() => onSelectView('activity')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                currentView === 'activity'
+                  ? 'bg-[#212b4a] text-white shadow-xs'
+                  : 'text-[#5c574c] hover:text-[#1c1a16] hover:bg-[#e8e0d0]'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              Mood Trends
+            </button>
+            <button
               onClick={() => onSelectView('chat')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 currentView === 'chat'
                   ? 'bg-[#212b4a] text-white shadow-xs'
                   : 'text-[#5c574c] hover:text-[#1c1a16] hover:bg-[#e8e0d0]'
@@ -76,7 +87,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
             <button
               onClick={() => onSelectView('coping')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 currentView === 'coping'
                   ? 'bg-[#212b4a] text-white shadow-xs'
                   : 'text-[#5c574c] hover:text-[#1c1a16] hover:bg-[#e8e0d0]'
@@ -86,7 +97,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
             <button
               onClick={() => onSelectView('peer')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 currentView === 'peer'
                   ? 'bg-[#212b4a] text-white shadow-xs'
                   : 'text-[#5c574c] hover:text-[#1c1a16] hover:bg-[#e8e0d0]'
@@ -96,7 +107,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
             <button
               onClick={() => onSelectView('counselor')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 currentView === 'counselor'
                   ? 'bg-[#212b4a] text-white shadow-xs'
                   : 'text-[#5c574c] hover:text-[#1c1a16] hover:bg-[#e8e0d0]'
@@ -106,7 +117,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
             <button
               onClick={() => onSelectView('ussd')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                 currentView === 'ussd'
                   ? 'bg-[#4f7c6f] text-white shadow-xs'
                   : 'text-[#4f7c6f] hover:bg-[#4f7c6f]/10 font-bold'
@@ -203,6 +214,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             }`}
           >
             Overview
+          </button>
+          <button
+            onClick={() => onSelectView('activity')}
+            className={`px-3 py-1 rounded-md shrink-0 font-medium ${
+              currentView === 'activity' ? 'bg-[#212b4a] text-white' : 'text-[#5c574c]'
+            }`}
+          >
+            Mood Trends
           </button>
           <button
             onClick={() => onSelectView('chat')}

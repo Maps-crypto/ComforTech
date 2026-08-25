@@ -42,7 +42,7 @@ export const ChatCompanion: React.FC<ChatCompanionProps> = ({
       {
         id: 'msg_1',
         role: 'assistant',
-        content: `${currentLang.greeting}! I am comforTech, powered by Lelapa AI (InkubaLM + Vulavula). How are you feeling in your mind and body today?`,
+        content: `${currentLang.greeting}! I am comforTech, your AI Student Wellness Companion. How are you feeling in your mind and body today?`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       },
     ];
@@ -149,7 +149,7 @@ export const ChatCompanion: React.FC<ChatCompanionProps> = ({
     };
 
     window.speechSynthesis.speak(utterance);
-    onActivityLogged('Lelapa Vulavula Voice Readout', `Played audio for message (${currentLang.name})`, 60);
+    onActivityLogged('Vulavula Voice Readout', `Played audio for message (${currentLang.name})`, 60);
   };
 
   const handleSendMessage = async (textToSend?: string) => {
@@ -260,7 +260,7 @@ export const ChatCompanion: React.FC<ChatCompanionProps> = ({
           </div>
           <div>
             <div className="text-sm font-bold text-slate-100 flex items-center gap-2">
-              Lelapa AI Multimodal Companion
+              Multimodal AI Companion
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold">
                 {currentLang.nativeName}
               </span>
@@ -268,7 +268,7 @@ export const ChatCompanion: React.FC<ChatCompanionProps> = ({
             <div className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
               <span>{userProfile.isAnonymous ? 'Guest (Zero Personal Data)' : `Signed In (${userProfile.displayName})`}</span>
               <span>·</span>
-              <span className="text-amber-400 font-mono text-[10px]">InkubaLM + Vulavula</span>
+              <span className="text-amber-400 font-mono text-[10px]">Vulavula Voice & Language Engine</span>
             </div>
           </div>
         </div>
@@ -358,7 +358,7 @@ export const ChatCompanion: React.FC<ChatCompanionProps> = ({
           {isTyping && (
             <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-950/80 px-3.5 py-2 rounded-xl rounded-bl-none w-fit border border-slate-800">
               <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping" />
-              <span>Lelapa InkubaLM is composing response...</span>
+              <span>AI Companion is composing response...</span>
             </div>
           )}
 
@@ -423,7 +423,7 @@ export const ChatCompanion: React.FC<ChatCompanionProps> = ({
           <div>
             <h4 className="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-amber-400" />
-              Generate Lelapa AI Triage Assessment?
+              Generate AI Triage Assessment?
             </h4>
             <p className="text-xs text-slate-400 mt-0.5">
               Analyzes the conversation to recommend the ideal student support pathway.

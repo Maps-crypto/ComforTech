@@ -79,7 +79,7 @@ export async function fetchLelapaRecommendations(params: {
         },
         {
           id: 'rec_journal',
-          title: 'Lelapa AI Emotion Journal',
+          title: 'AI Emotion Journal',
           category: 'journaling',
           duration: '3 min',
           reason: 'Externalize overwhelming thoughts and get instant supportive AI reflections.',
@@ -158,3 +158,47 @@ export async function fetchJournalReflection(params: {
     };
   }
 }
+
+export async function processVoiceJournal(params: {
+  audioBase64?: string;
+  mimeType?: string;
+  language?: string;
+  spokenText?: string;
+  topic?: string;
+  durationSeconds?: number;
+}): Promise<{
+  transcript: string;
+  sentimentScore: number;
+  detectedMood: string;
+  primaryThemes: string[];
+  reflection: string;
+  culturalInsight?: string;
+  suggestedMicroAction?: string;
+  audioDurationSeconds?: number;
+  engine?: string;
+}> {
+  try {
+    const res = await fetch('/api/vulavula/transcribe-journal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (error) {
+    console.warn('Fallback voice journaling used:', error);
+    const text = params.spokenText || 'I recorded my thoughts about exam and campus pressure to center myself.';
+    return {
+      transcript: text,
+      sentimentScore: 68,
+      detectedMood: 'Reflective & Grounded',
+      primaryThemes: ['Academic Pacing', 'Emotional Grounding'],
+      reflection: 'Speaking your feelings out loud reduces mental overwhelm. You are navigating intense academic periods, but pausing to express yourself shows genuine self-compassion.',
+      culturalInsight: 'Ubuntu reminds us that pacing ourselves through challenges is a shared human journey.',
+      suggestedMicroAction: 'Drink a glass of cool water and stretch your shoulders for 30 seconds.',
+      audioDurationSeconds: params.durationSeconds || 15,
+      engine: 'vulavula-client-fallback',
+    };
+  }
+}
+

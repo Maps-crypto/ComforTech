@@ -58,20 +58,20 @@ export const LelapaRecommendationEngine: React.FC<LelapaRecommendationEngineProp
   return (
     <div className="space-y-6">
       {/* Lelapa AI Header Card */}
-      <div className="bg-gradient-to-br from-[#212b4a] to-[#161d34] text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-[#212b4a] relative overflow-hidden">
-        {/* Subtle Background Pattern */}
-        <div className="absolute top-0 right-0 w-80 h-80 bg-[#4f7c6f]/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-60 h-60 bg-[#e8a33d]/10 rounded-full blur-2xl pointer-events-none" />
+      <div className="bg-gradient-to-br from-slate-900 via-slate-900/95 to-slate-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-800 relative overflow-hidden">
+        {/* Subtle Background Glow */}
+        <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-60 h-60 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
 
         <div className="relative z-10 space-y-6">
           {/* Top Row: Tag & Refresh */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span className="px-3 py-1 bg-[#4f7c6f] text-white rounded-full text-xs font-mono font-bold tracking-wider uppercase flex items-center gap-1.5 shadow-xs">
+              <span className="px-3 py-1 bg-emerald-600 text-white rounded-full text-xs font-mono font-bold tracking-wider uppercase flex items-center gap-1.5 shadow-sm">
                 <Brain className="w-3.5 h-3.5" />
-                Lelapa Vulavula AI Engine
+                Vulavula AI Wellness Engine
               </span>
-              <span className="text-xs text-[#b9c0d6] font-medium hidden sm:inline">
+              <span className="text-xs text-slate-400 font-medium hidden sm:inline">
                 Real-Time Adaptive Triage
               </span>
             </div>
@@ -79,10 +79,10 @@ export const LelapaRecommendationEngine: React.FC<LelapaRecommendationEngineProp
             <button
               onClick={onRefresh}
               disabled={isLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-medium text-white transition-all border border-white/15"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-xs font-medium text-slate-200 transition-all border border-slate-700 cursor-pointer"
               title="Recalculate recommendations from latest activity"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${isLoading ? 'animate-spin' : ''}`} />
               <span>{isLoading ? 'Analyzing...' : 'Recalculate Radar'}</span>
             </button>
           </div>
@@ -90,13 +90,13 @@ export const LelapaRecommendationEngine: React.FC<LelapaRecommendationEngineProp
           {/* Radar Metrics Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
             {/* Metric 1: Detected Sentiment & Wellbeing Score */}
-            <div className="bg-white/10 backdrop-blur-xs rounded-2xl p-4 border border-white/10 space-y-2">
-              <div className="flex items-center justify-between text-xs text-[#b9c0d6]">
+            <div className="bg-slate-950/60 backdrop-blur-xs rounded-2xl p-4 border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-400">
                 <span>Emotional State</span>
-                <span className="font-mono text-[11px]">Vulavula NLP</span>
+                <span className="font-mono text-[11px] text-slate-500">Vulavula NLP</span>
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-white tracking-tight">
+                <span className="text-2xl font-bold text-slate-100 tracking-tight">
                   {sentiment?.detectedMood || currentMood || 'Processing...'}
                 </span>
                 {sentiment?.sentimentScore !== undefined && (
@@ -107,7 +107,7 @@ export const LelapaRecommendationEngine: React.FC<LelapaRecommendationEngineProp
               </div>
               {/* Score Bar */}
               {sentiment?.sentimentScore !== undefined && (
-                <div className="w-full bg-white/15 h-2 rounded-full overflow-hidden">
+                <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
                   <div
                     className={`h-full transition-all duration-500 rounded-full ${getScoreBg(sentiment.sentimentScore)}`}
                     style={{ width: `${Math.min(100, Math.max(10, sentiment.sentimentScore))}%` }}
@@ -117,34 +117,34 @@ export const LelapaRecommendationEngine: React.FC<LelapaRecommendationEngineProp
             </div>
 
             {/* Metric 2: Primary Stressor Factor */}
-            <div className="bg-white/10 backdrop-blur-xs rounded-2xl p-4 border border-white/10 space-y-2">
-              <div className="flex items-center justify-between text-xs text-[#b9c0d6]">
+            <div className="bg-slate-950/60 backdrop-blur-xs rounded-2xl p-4 border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-400">
                 <span>Primary Context Trigger</span>
-                <span className="font-mono text-[11px]">InkubaLM</span>
+                <span className="font-mono text-[11px] text-slate-500">InkubaLM</span>
               </div>
-              <div className="text-lg font-bold text-[#e8a33d] truncate">
+              <div className="text-lg font-bold text-amber-400 truncate">
                 {sentiment?.primaryStressor || primaryStressor || 'Academics & Life'}
               </div>
-              <div className="text-[11px] text-[#b9c0d6] flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#e8a33d]" />
+              <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
                 <span>{recentActivities.length} recent student interactions analyzed</span>
               </div>
             </div>
 
             {/* Metric 3: Safety Risk Priority */}
-            <div className="bg-white/10 backdrop-blur-xs rounded-2xl p-4 border border-white/10 space-y-2">
-              <div className="flex items-center justify-between text-xs text-[#b9c0d6]">
+            <div className="bg-slate-950/60 backdrop-blur-xs rounded-2xl p-4 border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-400">
                 <span>Safety Triage Status</span>
-                <span className="font-mono text-[11px]">Clinical Safety</span>
+                <span className="font-mono text-[11px] text-slate-500">Clinical Safety</span>
               </div>
               <div className="flex items-center gap-2">
                 <span
                   className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
                     sentiment?.riskLevel === 'high'
-                      ? 'bg-[#c3503b] text-white'
+                      ? 'bg-rose-500/20 border border-rose-500/40 text-rose-300'
                       : sentiment?.riskLevel === 'medium'
-                      ? 'bg-[#e8a33d] text-[#1c1a16]'
-                      : 'bg-[#4f7c6f] text-white'
+                      ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300'
+                      : 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300'
                   }`}
                 >
                   {sentiment?.riskLevel === 'high'
@@ -154,7 +154,7 @@ export const LelapaRecommendationEngine: React.FC<LelapaRecommendationEngineProp
                     : 'Low / Stable State'}
                 </span>
               </div>
-              <div className="text-[11px] text-[#b9c0d6]">
+              <div className="text-[11px] text-slate-400">
                 {sentiment?.riskLevel === 'high'
                   ? 'SADAG 24/7 hotline 0800 567 567 active'
                   : 'Self-guided & peer pathways active'}
@@ -164,10 +164,10 @@ export const LelapaRecommendationEngine: React.FC<LelapaRecommendationEngineProp
 
           {/* Cultural & Context Insight */}
           {sentiment?.culturalInsight && (
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-xs text-[#f3eee4] leading-relaxed flex items-start gap-3">
-              <Sparkles className="w-4 h-4 text-[#e8a33d] shrink-0 mt-0.5" />
+            <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-4 text-xs text-slate-300 leading-relaxed flex items-start gap-3">
+              <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               <div>
-                <span className="font-bold text-[#e8a33d]">Lelapa Cultural Context: </span>
+                <span className="font-bold text-amber-400">Cultural & Ubuntu Context: </span>
                 {sentiment.culturalInsight}
               </div>
             </div>
@@ -179,12 +179,12 @@ export const LelapaRecommendationEngine: React.FC<LelapaRecommendationEngineProp
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-base font-bold text-[#1c1a16] flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#4f7c6f]" />
+            <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-emerald-400" />
               Personalized Coping Toolkit (Real-Time)
             </h3>
-            <p className="text-xs text-[#5c574c]">
-              Curated by Lelapa AI based on your recent activity, stress level, and language preference.
+            <p className="text-xs text-slate-400">
+              Curated by AI Wellness Engine based on your recent activity, stress level, and language preference.
             </p>
           </div>
         </div>
@@ -195,25 +195,25 @@ export const LelapaRecommendationEngine: React.FC<LelapaRecommendationEngineProp
               <div
                 key={action.id}
                 onClick={() => onSelectAction(action.actionType)}
-                className={`group bg-white rounded-2xl p-5 border transition-all duration-200 cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between ${
+                className={`group bg-slate-900/90 rounded-2xl p-5 border transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl flex flex-col justify-between ${
                   action.priority === 'immediate'
-                    ? 'border-[#c3503b]/40 hover:border-[#c3503b] bg-linear-to-b from-white to-[#c3503b]/5'
+                    ? 'border-rose-500/40 hover:border-rose-500 bg-gradient-to-b from-slate-900 to-rose-950/20'
                     : action.priority === 'recommended'
-                    ? 'border-[#4f7c6f]/30 hover:border-[#4f7c6f]'
-                    : 'border-[#e8e0d0] hover:border-[#212b4a]/40'
+                    ? 'border-emerald-500/30 hover:border-emerald-500'
+                    : 'border-slate-800 hover:border-slate-700'
                 }`}
               >
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <div className="w-8 h-8 rounded-xl bg-[#f3eee4] flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-xl bg-slate-800 flex items-center justify-center border border-slate-700/60">
                       {getCategoryIcon(action.category)}
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md bg-[#e8e0d0] text-[#5c574c]">
+                      <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700">
                         {action.duration}
                       </span>
                       {action.priority === 'immediate' && (
-                        <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md bg-[#c3503b] text-white">
+                        <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md bg-rose-500 text-white">
                           Priority
                         </span>
                       )}
@@ -221,16 +221,16 @@ export const LelapaRecommendationEngine: React.FC<LelapaRecommendationEngineProp
                   </div>
 
                   <div>
-                    <h4 className="text-sm font-bold text-[#1c1a16] group-hover:text-[#4f7c6f] transition-colors line-clamp-1">
+                    <h4 className="text-sm font-bold text-slate-100 group-hover:text-emerald-400 transition-colors line-clamp-1">
                       {action.title}
                     </h4>
-                    <p className="text-xs text-[#5c574c] mt-1 line-clamp-2 leading-relaxed">
+                    <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
                       {action.reason}
                     </p>
                   </div>
                 </div>
 
-                <div className="pt-4 mt-2 border-t border-[#f3eee4] flex items-center justify-between text-xs font-bold text-[#4f7c6f] group-hover:translate-x-0.5 transition-transform">
+                <div className="pt-4 mt-2 border-t border-slate-800/80 flex items-center justify-between text-xs font-bold text-emerald-400 group-hover:translate-x-0.5 transition-transform">
                   <span>Start Activity</span>
                   <ChevronRight className="w-4 h-4" />
                 </div>
@@ -238,7 +238,7 @@ export const LelapaRecommendationEngine: React.FC<LelapaRecommendationEngineProp
             ))}
           </div>
         ) : (
-          <div className="p-8 text-center bg-white rounded-2xl border border-[#e8e0d0] text-xs text-[#5c574c]">
+          <div className="p-8 text-center bg-slate-900/60 rounded-2xl border border-slate-800 text-xs text-slate-400">
             Loading personalized recommendations...
           </div>
         )}
@@ -250,21 +250,21 @@ export const LelapaRecommendationEngine: React.FC<LelapaRecommendationEngineProp
         {recommendations?.peerCircleRecommendation && (
           <div
             onClick={() => onSelectAction('open_peer_room')}
-            className="bg-white rounded-2xl p-5 border border-[#e8e0d0] hover:border-[#4f7c6f] transition-all cursor-pointer shadow-xs space-y-3 group"
+            className="bg-slate-900/90 rounded-2xl p-5 border border-slate-800 hover:border-emerald-500 transition-all cursor-pointer shadow-lg space-y-3 group"
           >
-            <div className="flex items-center gap-2 text-xs font-bold text-[#4f7c6f]">
+            <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
               <Users className="w-4 h-4" />
               <span>Recommended Peer Circle</span>
             </div>
             <div>
-              <h4 className="text-sm font-bold text-[#1c1a16] group-hover:text-[#4f7c6f] transition-colors">
+              <h4 className="text-sm font-bold text-slate-100 group-hover:text-emerald-400 transition-colors">
                 {recommendations.peerCircleRecommendation.topic}
               </h4>
-              <p className="text-xs text-[#5c574c] mt-1">
+              <p className="text-xs text-slate-400 mt-1">
                 {recommendations.peerCircleRecommendation.whyMatch}
               </p>
             </div>
-            <div className="flex items-center gap-1 text-xs font-bold text-[#4f7c6f]">
+            <div className="flex items-center gap-1 text-xs font-bold text-emerald-400">
               <span>Join Anonymous Student Room</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </div>
@@ -272,17 +272,17 @@ export const LelapaRecommendationEngine: React.FC<LelapaRecommendationEngineProp
         )}
 
         {/* Daily Affirmation */}
-        <div className="bg-gradient-to-br from-[#f3eee4] to-[#e8e0d0] rounded-2xl p-5 border border-[#e8e0d0] space-y-2 flex flex-col justify-between">
+        <div className="bg-gradient-to-br from-slate-900 to-slate-950 rounded-2xl p-5 border border-slate-800 space-y-2 flex flex-col justify-between shadow-lg">
           <div>
-            <div className="flex items-center gap-2 text-xs font-bold text-[#c9822a]">
+            <div className="flex items-center gap-2 text-xs font-bold text-amber-400">
               <Sparkles className="w-4 h-4" />
-              <span>Lelapa Daily Affirmation</span>
+              <span>Daily AI Affirmation</span>
             </div>
-            <p className="text-xs italic text-[#1c1a16] mt-2 leading-relaxed">
+            <p className="text-xs italic text-slate-200 mt-2 leading-relaxed">
               "{recommendations?.affirmation || 'You are stronger than the stress of this moment. Take one slow breath at a time.'}"
             </p>
           </div>
-          <div className="text-[11px] text-[#5c574c] pt-2 border-t border-[#e8e0d0]/60">
+          <div className="text-[11px] text-slate-500 pt-2 border-t border-slate-800">
             Dedicated for {userProfile.isAnonymous ? 'Anonymous Student' : userProfile.displayName}
           </div>
         </div>

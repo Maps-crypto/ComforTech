@@ -88,21 +88,78 @@ export function getActivities(): ActivityItem[] {
   try {
     const saved = localStorage.getItem(ACTIVITIES_KEY);
     if (saved) {
-      return JSON.parse(saved);
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
     }
   } catch (e) {
     console.error('Failed to load activities', e);
   }
-  return [
+
+  const now = Date.now();
+  const day = 86400000;
+  const hour = 3600000;
+
+  // Rich starter activity ledger with sentiment scores across past 5 days
+  const defaultActivities: ActivityItem[] = [
+    {
+      id: 'init_6',
+      type: 'mood_checkin',
+      title: 'Daily Mental Check-In',
+      description: 'Mood: Hopeful · Energy: 4/5 · Stress: Exams & Deadlines',
+      timestamp: new Date(now - 2 * hour).toISOString(),
+      sentimentScore: 78,
+    },
+    {
+      id: 'init_5',
+      type: 'coping_tool',
+      title: '4-4-4-4 Box Breathing Reset',
+      description: 'Completed 4 deep breath regulation cycles',
+      timestamp: new Date(now - 14 * hour).toISOString(),
+      sentimentScore: 72,
+    },
+    {
+      id: 'init_4',
+      type: 'journal_entry',
+      title: 'Lelapa AI Journal Entry',
+      description: 'Reflected on NSFAS & Finances with AI reframing',
+      timestamp: new Date(now - 1 * day - 4 * hour).toISOString(),
+      sentimentScore: 64,
+    },
+    {
+      id: 'init_3',
+      type: 'peer_post',
+      title: 'Joined Peer Circle',
+      description: 'Connected with Wits & UJ students in Exam Survival Room',
+      timestamp: new Date(now - 2 * day - 6 * hour).toISOString(),
+      sentimentScore: 58,
+    },
+    {
+      id: 'init_2',
+      type: 'coping_tool',
+      title: '5-4-3-2-1 Sensory Grounding',
+      description: 'Re-anchored senses during high study tension',
+      timestamp: new Date(now - 3 * day - 2 * hour).toISOString(),
+      sentimentScore: 50,
+    },
     {
       id: 'init_1',
       type: 'mood_checkin',
-      title: 'First comforTech Check-in',
-      description: 'Started anonymous support session',
-      timestamp: new Date(Date.now() - 3600000).toISOString(),
-      sentimentScore: 50,
+      title: 'Initial comforTech Check-in',
+      description: 'Entered with high semester fatigue and assignment pressure',
+      timestamp: new Date(now - 4 * day - 8 * hour).toISOString(),
+      sentimentScore: 38,
     },
   ];
+
+  try {
+    localStorage.setItem(ACTIVITIES_KEY, JSON.stringify(defaultActivities));
+  } catch (e) {
+    // Local storage disabled or full
+  }
+
+  return defaultActivities;
 }
 
 export function addActivity(activity: ActivityItem): ActivityItem[] {

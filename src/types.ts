@@ -54,12 +54,23 @@ export type MoodType =
 
 export interface ActivityItem {
   id: string;
-  type: 'mood_checkin' | 'chat_message' | 'journal_entry' | 'coping_tool' | 'peer_post' | 'counselor_request';
+  type: 'mood_checkin' | 'chat_message' | 'journal_entry' | 'voice_journal' | 'coping_tool' | 'peer_post' | 'counselor_request';
   title: string;
   description: string;
   timestamp: string;
   data?: any;
   sentimentScore?: number; // 0 - 100
+}
+
+export interface VoiceJournalResult {
+  transcript: string;
+  sentimentScore: number;
+  detectedMood: string;
+  primaryThemes: string[];
+  reflection: string;
+  culturalInsight?: string;
+  suggestedMicroAction?: string;
+  audioDurationSeconds?: number;
 }
 
 export interface CopingToolAction {
