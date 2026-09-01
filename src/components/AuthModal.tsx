@@ -43,34 +43,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         authProvider: 'Email',
       });
       setIsLoading(false);
-      setSuccessMsg('Account synced successfully! Your check-ins, journal reflections, and Lelapa recommendations are now secured.');
+      setSuccessMsg('Account synced successfully! Your check-ins and journal reflections are now secured.');
       setTimeout(() => {
         setSuccessMsg('');
         onClose();
       }, 1400);
     }, 600);
-  };
-
-  const handleSocialSignIn = (provider: 'Google' | 'Facebook') => {
-    setIsLoading(true);
-    setTimeout(() => {
-      const generatedEmail =
-        provider === 'Google'
-          ? `${(displayName || 'student').toLowerCase().replace(/\s+/g, '')}@gmail.com`
-          : `${(displayName || 'student').toLowerCase().replace(/\s+/g, '')}@student.za`;
-      onSwitchMode('email', {
-        email: generatedEmail,
-        displayName: displayName || (provider === 'Google' ? 'Google Student' : 'Facebook Student'),
-        university,
-        authProvider: provider,
-      });
-      setIsLoading(false);
-      setSuccessMsg(`Signed in with ${provider}! Your anonymous session history is merged.`);
-      setTimeout(() => {
-        setSuccessMsg('');
-        onClose();
-      }, 1400);
-    }, 700);
   };
 
   const handleContinueAnonymous = () => {
@@ -87,225 +65,149 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
-      <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden text-slate-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+      <div className="bg-white border border-slate-200 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden text-slate-900">
         {/* Modal Header */}
-        <div className="bg-slate-950/80 border-b border-slate-800 p-6 relative">
+        <div className="p-6 border-b border-slate-100 relative bg-slate-50">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+            className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-2.5 mb-2">
-            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+          <div className="flex items-center gap-2.5 mb-1">
+            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200">
               <Shield className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-xl font-bold font-sans text-slate-100">Choose Your Access Mode</h2>
-              <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400 font-semibold">
-                POPIA & Health Privacy Protected
+              <h2 className="text-lg font-bold font-sans text-slate-900">Student Privacy & Identity</h2>
+              <span className="text-[11px] font-mono text-emerald-800 font-bold uppercase tracking-wider">
+                POPIA Act Compliant
               </span>
             </div>
           </div>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            Access immediate support without creating an account, or sign in to save your personal streak and cross-device recommendations.
+          <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+            Choose whether to remain completely anonymous or sync your wellness trajectory across devices.
           </p>
-
-          {/* Mode Tabs */}
-          <div className="grid grid-cols-2 gap-2 mt-5 bg-slate-900 p-1 rounded-xl border border-slate-800">
-            <button
-              onClick={() => setTab('anonymous')}
-              className={`py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                tab === 'anonymous'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Lock className="w-3.5 h-3.5" />
-              100% Anonymous Mode
-            </button>
-            <button
-              onClick={() => setTab('email')}
-              className={`py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                tab === 'email'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <LogIn className="w-3.5 h-3.5" />
-              Sign In & Sync
-            </button>
-          </div>
         </div>
 
-        {/* Modal Body */}
-        <div className="p-6">
+        {/* Tab Toggle */}
+        <div className="flex border-b border-slate-100 bg-slate-50/50">
+          <button
+            onClick={() => setTab('anonymous')}
+            className={`flex-1 py-3 text-xs font-bold transition-all cursor-pointer ${
+              tab === 'anonymous'
+                ? 'text-emerald-700 border-b-2 border-emerald-600 bg-white'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            100% Anonymous Mode
+          </button>
+          <button
+            onClick={() => setTab('email')}
+            className={`flex-1 py-3 text-xs font-bold transition-all cursor-pointer ${
+              tab === 'email'
+                ? 'text-emerald-700 border-b-2 border-emerald-600 bg-white'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            Sync Account (Optional)
+          </button>
+        </div>
+
+        {/* Tab Content */}
+        <div className="p-6 space-y-4">
           {successMsg ? (
-            <div className="p-6 text-center space-y-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl">
-              <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto animate-bounce" />
-              <p className="text-sm font-semibold text-slate-100">{successMsg}</p>
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-900 text-xs flex items-center gap-2 font-bold animate-in fade-in">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span>{successMsg}</span>
             </div>
           ) : tab === 'anonymous' ? (
-            <div className="space-y-4">
-              <div className="p-4 bg-slate-950/60 rounded-2xl border border-slate-800 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-300">Active Guest Alias</span>
-                  <span className="px-2.5 py-0.5 rounded-full font-mono text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                    {userProfile.displayName}
-                  </span>
+            <div className="space-y-4 text-xs">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                <div className="font-bold text-slate-900 flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-emerald-600" />
+                  Your Protected Alias: <span className="font-mono text-emerald-700">{userProfile.displayName}</span>
                 </div>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  No sign-up required. Your check-ins, journal reflections, and Lelapa AI recommendations stay strictly inside this browser session until you choose to register.
+                <p className="text-slate-600 leading-relaxed">
+                  You are browsing in Zero-Data Trace mode. No student numbers, legal names, or emails are stored on our servers.
                 </p>
               </div>
 
-              <div className="space-y-2.5 text-xs text-slate-300">
-                <div className="flex items-start gap-2.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>Instant access to AI check-ins, coping exercises & peer support</span>
+              <div className="space-y-1.5 text-slate-600">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>No login or password needed</span>
                 </div>
-                <div className="flex items-start gap-2.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>Zero tracking of personal identity, email, or physical location</span>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Full access to AI Chat, Coping Suite, & Circles</span>
                 </div>
-                <div className="flex items-start gap-2.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>Seamlessly link activity to an email or social account later</span>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Activity saved in your private local browser cache</span>
                 </div>
               </div>
 
               <button
                 onClick={handleContinueAnonymous}
                 disabled={isLoading}
-                className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm shadow-md shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 mt-4 cursor-pointer"
+                className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
               >
-                <Sparkles className="w-4 h-4 text-indigo-200" />
-                {isLoading ? 'Setting up session...' : 'Continue as Anonymous Guest'}
+                {isLoading ? 'Refreshing Session...' : 'Continue as Anonymous Student'}
               </button>
             </div>
           ) : (
-            <div className="space-y-5">
-              {/* Social Sign-In Options */}
-              <div className="space-y-2.5">
-                <label className="block text-xs font-bold text-slate-300">
-                  Instant Social Sign-In
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => handleSocialSignIn('Google')}
-                    disabled={isLoading}
-                    className="flex items-center justify-center gap-2 p-2.5 bg-slate-950/80 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-semibold text-slate-200 transition-all cursor-pointer shadow-xs"
-                  >
-                    <svg className="w-4 h-4" viewBox="0 0 24 24">
-                      <path
-                        fill="#4285F4"
-                        d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 10.02 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
-                      />
-                      <path
-                        fill="#EA4335"
-                        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
-                      />
-                    </svg>
-                    <span>Google</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSocialSignIn('Facebook')}
-                    disabled={isLoading}
-                    className="flex items-center justify-center gap-2 p-2.5 bg-slate-950/80 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-semibold text-slate-200 transition-all cursor-pointer shadow-xs"
-                  >
-                    <svg className="w-4 h-4 fill-[#1877F2]" viewBox="0 0 24 24">
-                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-                    </svg>
-                    <span>Facebook</span>
-                  </button>
-                </div>
+            <form onSubmit={handleEmailSubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Display Alias / Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. HopefulLion92"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none"
+                />
               </div>
 
-              <div className="relative flex items-center justify-center">
-                <div className="border-t border-slate-800 w-full" />
-                <span className="bg-slate-900 px-3 text-[10px] text-slate-500 uppercase tracking-widest font-mono">
-                  Or Email Sign In
-                </span>
-                <div className="border-t border-slate-800 w-full" />
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Student / Personal Email</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="e.g. student@wits.ac.za"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none"
+                />
               </div>
 
-              <form onSubmit={handleEmailSubmit} className="space-y-3.5">
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">
-                    Student or Personal Email <span className="text-rose-400">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="e.g., student@students.wits.ac.za or name@gmail.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-700/80 bg-slate-950/60 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-300 mb-1">
-                      Display Name / Alias
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Thabo M. or JoziStudent"
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-700/80 bg-slate-950/60 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-300 mb-1">
-                      University / Institution
-                    </label>
-                    <select
-                      value={university}
-                      onChange={(e) => setUniversity(e.target.value)}
-                      className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-700/80 bg-slate-950/60 text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                      {SA_UNIVERSITIES.map((u) => (
-                        <option key={u} value={u} className="bg-slate-900 text-slate-100">
-                          {u}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm shadow-md shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 mt-4 cursor-pointer"
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">University / Campus</label>
+                <select
+                  value={university}
+                  onChange={(e) => setUniversity(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none"
                 >
-                  <UserCheck className="w-4 h-4" />
-                  {isLoading ? 'Saving profile...' : 'Sign In & Save Activity'}
-                </button>
-              </form>
-            </div>
-          )}
-        </div>
+                  {SA_UNIVERSITIES.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-        {/* Modal Footer Note */}
-        <div className="bg-slate-950/80 px-6 py-3.5 border-t border-slate-800 text-center text-[11px] text-slate-400">
-          Confidential & POPIA Compliant · Emergency? Call SADAG <strong className="text-slate-200">0800 567 567</strong> or dial <strong className="text-slate-200">112</strong>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+              >
+                {isLoading ? 'Syncing...' : 'Save & Sync Account'}
+              </button>
+            </form>
+          )}
         </div>
       </div>
     </div>
   );
 };
-

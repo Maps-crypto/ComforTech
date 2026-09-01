@@ -1,8 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { STRESSORS, LANGUAGES } from '../data/mockData';
-import { fetchJournalReflection, processVoiceJournal } from '../services/api';
-import { saveJournalEntry } from '../services/storage';
-import { JournalEntry, MoodType, StressorCategory, UserProfile, VoiceJournalResult } from '../types';
+import { fetchJournalReflection, processVoiceJournal, fetchVoiceSummaryReport } from '../services/api';
+import { saveJournalEntry, getVoiceJournalEntries, saveVoiceJournalEntry, deleteVoiceJournalEntry } from '../services/storage';
+import {
+  JournalEntry,
+  MoodType,
+  StressorCategory,
+  UserProfile,
+  VoiceJournalResult,
+  VoiceJournalEntry,
+  VoiceSentimentSummaryReport,
+  LanguageCode,
+} from '../types';
+import { getTranslation } from '../utils/translations';
+import { VoiceSummaryReportModal } from './VoiceSummaryReportModal';
 import {
   Wind,
   Zap,
@@ -25,13 +36,19 @@ import {
   Activity,
   HeartHandshake,
   ArrowRight,
+  Brain,
+  MessageSquareQuote,
+  FileText,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  BarChart2,
   TrendingUp,
-  BrainCircuit,
-  MessageSquareQuote
 } from 'lucide-react';
 
 interface CopingToolsProps {
   userProfile: UserProfile;
+  selectedLanguage?: LanguageCode;
   initialTab?: 'breathing' | 'grounding' | 'journal' | 'voice' | 'checkin';
   onActivityLogged: (title: string, desc: string, score?: number) => void;
   onRefreshRecommendations: () => void;
@@ -39,13 +56,15 @@ interface CopingToolsProps {
 
 export const CopingTools: React.FC<CopingToolsProps> = ({
   userProfile,
+  selectedLanguage,
   initialTab = 'breathing',
   onActivityLogged,
   onRefreshRecommendations,
 }) => {
+  const activeLangCode = selectedLanguage || userProfile.preferredLanguage || 'en';
+  const t = getTranslation(activeLangCode);
   const [activeTab, setActiveTab] = useState<'breathing' | 'grounding' | 'journal' | 'voice' | 'checkin'>(initialTab);
 
-  // Sync if initialTab changes
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
@@ -128,11 +147,11 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
 
   /* ================= 5-4-3-2-1 GROUNDING STATE ================= */
   const groundingSteps = [
-    { count: 5, label: 'Things you can SEE', hint: 'e.g. your desk, the window, a pen, light reflection, shoes' },
-    { count: 4, label: 'Things you can physically TOUCH / FEEL', hint: 'e.g. texture of your clothes, cool table, your feet on the ground' },
-    { count: 3, label: 'Things you can HEAR', hint: 'e.g. birds outside, fridge hum, distant traffic, your own breath' },
-    { count: 2, label: 'Things you can SMELL', hint: 'e.g. coffee, fresh air, notebook paper, soap' },
-    { count: 1, label: 'Thing you can TASTE or one genuine blessing', hint: 'e.g. mint, water, or gratitude for your breath right now' },
+    { count: 5, label: t.coping.grounding.see || 'Things you can SEE', hint: 'e.g., your desk, light on the wall, textbook, your shoes, tree outside' },
+    { count: 4, label: t.coping.grounding.touch || 'Things you can physically TOUCH / FEEL', hint: 'e.g., your feet against the floor, fabric of your shirt, cool desk' },
+    { count: 3, label: t.coping.grounding.hear || 'Things you can HEAR', hint: 'e.g., distant footsteps, fan humming, birds, your own breathing' },
+    { count: 2, label: t.coping.grounding.smell || 'Things you can SMELL', hint: 'e.g., notebook paper, coffee, fresh air, hand sanitizer' },
+    { count: 1, label: t.coping.grounding.taste || 'Thing you can TASTE or gratitude', hint: 'e.g., mint, water, or gratitude for your courage right now' },
   ];
   const [currentGroundingStep, setCurrentGroundingStep] = useState(0);
   const [groundingInputs, setGroundingInputs] = useState<{ [key: number]: string }>({});
@@ -140,7 +159,6 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
   const handleFinishGrounding = () => {
     onActivityLogged('5-4-3-2-1 Grounding Completed', 'Re-anchored senses to physical surroundings', 70);
     onRefreshRecommendations();
-    alert('Grounding complete! Notice the stillness in your nervous system.');
     setCurrentGroundingStep(0);
   };
 
@@ -180,8 +198,16 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
     }
   };
 
-  /* ================= VOICE JOURNALING (VULAVULA) STATE ================= */
-  const [voiceLanguage, setVoiceLanguage] = useState<string>('English');
+  /* ================= VOICE JOURNALING STATE ================= */
+  const initialLang = LANGUAGES.find((l) => l.code === activeLangCode) || LANGUAGES[0];
+  const [voiceLanguage, setVoiceLanguage] = useState<string>(initialLang.name);
+
+  useEffect(() => {
+    const matched = LANGUAGES.find((l) => l.code === activeLangCode);
+    if (matched) {
+      setVoiceLanguage(matched.name);
+    }
+  }, [activeLangCode]);
   const [voiceTopic, setVoiceTopic] = useState<string>('Exam stress & study pace');
   const [recordingState, setRecordingState] = useState<'idle' | 'recording' | 'recorded' | 'processing' | 'done'>('idle');
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -192,6 +218,14 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
   const [manualSpokenInput, setManualSpokenInput] = useState('');
   const [micPermissionError, setMicPermissionError] = useState<string | null>(null);
 
+  // Voice entries history and summary report states
+  const [voiceEntries, setVoiceEntries] = useState<VoiceJournalEntry[]>(() => getVoiceJournalEntries());
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [summaryReport, setSummaryReport] = useState<VoiceSentimentSummaryReport | null>(null);
+  const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
+  const [previewingHistoryEntry, setPreviewingHistoryEntry] = useState<VoiceJournalEntry | null>(null);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<any>(null);
@@ -200,12 +234,11 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
   const voicePrompts = [
     'Exam stress & study pace',
     'Financial & NSFAS anxiety',
-    'Missing home / loneliness',
+    'Missing home / loneliness in res',
     'Unfiltered stream of thoughts',
     'Daily win & self-gratitude',
   ];
 
-  // Start voice recording
   const startRecording = async () => {
     setMicPermissionError(null);
     setVoiceResult(null);
@@ -234,8 +267,6 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
         const url = URL.createObjectURL(blob);
         setAudioUrl(url);
         setRecordingState('recorded');
-
-        // Stop media tracks
         stream.getTracks().forEach((track) => track.stop());
       };
 
@@ -246,9 +277,8 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
         setRecordingSeconds((sec) => sec + 1);
       }, 1000);
     } catch (err: any) {
-      console.warn('Microphone error:', err);
-      setMicPermissionError('Microphone permission needed or preview mode active. You can speak or use our audio reflection input below.');
-      // Allow fallback simulation
+      console.warn('Microphone notice:', err);
+      setMicPermissionError('Microphone permission required or active in preview. You can speak or use the reflection box below.');
       setRecordingState('recording');
       recordingTimerRef.current = setInterval(() => {
         setRecordingSeconds((sec) => sec + 1);
@@ -256,21 +286,15 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
     }
   };
 
-  // Stop voice recording
   const stopRecording = () => {
-    if (recordingTimerRef.current) {
-      clearInterval(recordingTimerRef.current);
-    }
-
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     } else {
-      // Fallback state if simulated
       setRecordingState('recorded');
     }
   };
 
-  // Reset recording
   const resetRecording = () => {
     if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
     setRecordingState('idle');
@@ -282,7 +306,6 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
     setManualSpokenInput('');
   };
 
-  // Process and analyze with Vulavula
   const handleAnalyzeVoiceJournal = async () => {
     setRecordingState('processing');
     try {
@@ -307,16 +330,58 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
       setVoiceResult(result);
       setRecordingState('done');
 
-      // Auto-log to activity history & trigger recommendations
+      // Save into historical voice journal entries
+      const newEntry: VoiceJournalEntry = {
+        id: 'v_' + Date.now(),
+        transcript: result.transcript,
+        sentimentScore: result.sentimentScore,
+        detectedMood: result.detectedMood,
+        primaryThemes: result.primaryThemes,
+        reflection: result.reflection,
+        culturalInsight: result.culturalInsight,
+        suggestedMicroAction: result.suggestedMicroAction,
+        audioDurationSeconds: result.audioDurationSeconds || recordingSeconds || 15,
+        language: voiceLanguage,
+        topic: voiceTopic,
+        timestamp: new Date().toISOString(),
+      };
+      const updatedEntries = saveVoiceJournalEntry(newEntry);
+      setVoiceEntries(updatedEntries);
+
       onActivityLogged(
         'Voice Journal Reflection',
-        `Vulavula Transcribed: "${result.transcript.slice(0, 60)}..." · (${voiceLanguage})`,
+        `Transcribed: "${result.transcript.slice(0, 60)}..." · (${voiceLanguage})`,
         result.sentimentScore
       );
       onRefreshRecommendations();
     } catch (e) {
       console.error('Failed to process voice reflection:', e);
       setRecordingState('recorded');
+    }
+  };
+
+  const handleGenerateSummaryReport = async () => {
+    setIsGeneratingSummary(true);
+    setIsSummaryModalOpen(true);
+    try {
+      const { report } = await fetchVoiceSummaryReport({
+        voiceEntries,
+        language: voiceLanguage,
+      });
+      setSummaryReport(report);
+    } catch (err) {
+      console.error('Failed to generate voice summary report:', err);
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  };
+
+  const handleDeleteVoiceEntry = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = deleteVoiceJournalEntry(id);
+    setVoiceEntries(updated);
+    if (previewingHistoryEntry?.id === id) {
+      setPreviewingHistoryEntry(null);
     }
   };
 
@@ -346,121 +411,119 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      {/* Tool Navigation Tabs */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 bg-[#e8e0d0]/50 p-1.5 rounded-2xl">
+      {/* Tool Navigation Segmented Pills */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 bg-slate-200/80 p-1 rounded-2xl border border-slate-200">
         <button
           onClick={() => setActiveTab('breathing')}
-          className={`py-3 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+          className={`py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
             activeTab === 'breathing'
-              ? 'bg-[#212b4a] text-white shadow-xs'
-              : 'text-[#5c574c] hover:bg-[#e8e0d0]'
+              ? 'bg-white text-slate-900 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
           }`}
         >
-          <Wind className="w-4 h-4 text-[#4f7c6f]" />
-          <span>Box Breathing</span>
+          <Wind className="w-4 h-4 text-emerald-600" />
+          <span>{t.coping.tabs.breathing || 'Box Breathing'}</span>
         </button>
 
         <button
           onClick={() => setActiveTab('grounding')}
-          className={`py-3 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+          className={`py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
             activeTab === 'grounding'
-              ? 'bg-[#212b4a] text-white shadow-xs'
-              : 'text-[#5c574c] hover:bg-[#e8e0d0]'
+              ? 'bg-white text-slate-900 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
           }`}
         >
-          <Zap className="w-4 h-4 text-[#e8a33d]" />
-          <span>5-4-3-2-1 Grounding</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('journal')}
-          className={`py-3 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-            activeTab === 'journal'
-              ? 'bg-[#212b4a] text-white shadow-xs'
-              : 'text-[#5c574c] hover:bg-[#e8e0d0]'
-          }`}
-        >
-          <BookOpen className="w-4 h-4 text-[#4f7c6f]" />
-          <span>AI Mood Journal</span>
+          <Zap className="w-4 h-4 text-amber-600" />
+          <span>{t.coping.tabs.grounding || '5-4-3-2-1 Grounding'}</span>
         </button>
 
         <button
           onClick={() => setActiveTab('voice')}
-          className={`py-3 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer relative ${
+          className={`py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
             activeTab === 'voice'
-              ? 'bg-[#212b4a] text-white shadow-xs'
-              : 'text-[#5c574c] hover:bg-[#e8e0d0]'
+              ? 'bg-white text-slate-900 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
           }`}
         >
-          <Mic className="w-4 h-4 text-emerald-400" />
+          <Mic className="w-4 h-4 text-emerald-600" />
           <span className="flex items-center gap-1">
-            Voice Journal
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            {t.coping.tabs.voice || 'Voice Journal'}
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
           </span>
         </button>
 
         <button
-          onClick={() => setActiveTab('checkin')}
-          className={`py-3 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-            activeTab === 'checkin'
-              ? 'bg-[#212b4a] text-white shadow-xs'
-              : 'text-[#5c574c] hover:bg-[#e8e0d0]'
+          onClick={() => setActiveTab('journal')}
+          className={`py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            activeTab === 'journal'
+              ? 'bg-white text-slate-900 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
           }`}
         >
-          <Smile className="w-4 h-4 text-[#e8a33d]" />
-          <span>Daily Check-In</span>
+          <BookOpen className="w-4 h-4 text-indigo-600" />
+          <span>{t.coping.tabs.journal || 'AI Emotion Journal'}</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('checkin')}
+          className={`py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            activeTab === 'checkin'
+              ? 'bg-white text-slate-900 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+          }`}
+        >
+          <Smile className="w-4 h-4 text-amber-600" />
+          <span>{t.coping.tabs.checkin || 'Daily Check-In'}</span>
         </button>
       </div>
 
-      {/* TAB 1: BOX BREATHING */}
+      {/* TAB 1: 4-4-4-4 BOX BREATHING */}
       {activeTab === 'breathing' && (
-        <div className="bg-white rounded-3xl p-6 sm:p-10 border border-[#e8e0d0] shadow-sm text-center space-y-8">
+        <div className="bg-white rounded-3xl p-6 sm:p-10 border border-slate-200/80 shadow-xs text-center space-y-8">
           <div className="max-w-md mx-auto space-y-2">
-            <h3 className="text-xl font-bold text-[#1c1a16] font-sans">
+            <h3 className="text-xl font-bold text-slate-900">
               4-4-4-4 Box Breathing Reset
             </h3>
-            <p className="text-xs text-[#5c574c] leading-relaxed">
-              Used by emergency responders and students before high-stakes exams to instantly reduce sympathetic nervous system overdrive.
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Inhale 4s · Hold 4s · Exhale 4s · Hold 4s. Used before high-stakes exams and during sudden panic to safely calm your autonomic nervous system.
             </p>
           </div>
 
           {/* Animated Visualizer Circle */}
           <div className="relative w-64 h-64 mx-auto flex items-center justify-center">
-            {/* Outer Ring */}
             <div
               className={`absolute inset-0 rounded-full border-4 border-dashed transition-all duration-1000 ${
                 breathingActive
                   ? breathPhase === 'Inhale'
-                    ? 'border-[#4f7c6f] scale-105'
+                    ? 'border-emerald-500 scale-105'
                     : breathPhase === 'Exhale'
-                    ? 'border-[#212b4a] scale-90'
-                    : 'border-[#e8a33d] scale-100'
-                  : 'border-[#e8e0d0]'
+                    ? 'border-slate-800 scale-90'
+                    : 'border-amber-500 scale-100'
+                  : 'border-slate-200'
               }`}
             />
 
-            {/* Inner Expanding/Contracting Blob */}
             <div
               className={`w-48 h-48 rounded-full flex flex-col items-center justify-center text-white shadow-xl transition-all duration-1000 ${
                 breathingActive
                   ? breathPhase === 'Inhale'
-                    ? 'bg-[#4f7c6f] scale-110'
+                    ? 'bg-emerald-600 scale-110'
                     : breathPhase === 'Hold (In)'
-                    ? 'bg-[#3a5d53] scale-105'
+                    ? 'bg-emerald-700 scale-105'
                     : breathPhase === 'Exhale'
-                    ? 'bg-[#212b4a] scale-80'
-                    : 'bg-[#161d34] scale-85'
-                  : 'bg-[#212b4a]'
+                    ? 'bg-slate-900 scale-85'
+                    : 'bg-slate-800 scale-90'
+                  : 'bg-slate-900'
               }`}
             >
-              <span className="text-xs uppercase tracking-widest font-mono font-bold text-[#e8a33d]">
+              <span className="text-xs uppercase tracking-widest font-mono font-bold text-emerald-300">
                 {breathingActive ? breathPhase : 'Ready'}
               </span>
               <span className="text-4xl font-bold font-mono my-1">
                 {breathingActive ? phaseSecondsLeft : '4s'}
               </span>
-              <span className="text-[11px] text-[#b9c0d6]">
-                {cyclesCompleted > 0 ? `${cyclesCompleted} cycles` : 'Box Rhythm'}
+              <span className="text-[11px] text-slate-300">
+                {cyclesCompleted > 0 ? `${cyclesCompleted} cycles finished` : 'Box Rhythm'}
               </span>
             </div>
           </div>
@@ -469,10 +532,10 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
           <div className="flex items-center justify-center gap-3">
             <button
               onClick={toggleBreathing}
-              className={`px-8 py-3.5 rounded-2xl font-bold text-sm shadow-md transition-all flex items-center gap-2 cursor-pointer ${
+              className={`px-8 py-3.5 rounded-xl font-bold text-sm shadow-sm transition-all flex items-center gap-2 cursor-pointer ${
                 breathingActive
-                  ? 'bg-[#c3503b] hover:bg-[#b0432f] text-white'
-                  : 'bg-[#4f7c6f] hover:bg-[#3a5d53] text-white'
+                  ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
               }`}
             >
               {breathingActive ? (
@@ -490,10 +553,10 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
 
             <button
               onClick={() => setSoundEnabled(!soundEnabled)}
-              className="p-3.5 rounded-2xl border border-[#e8e0d0] hover:bg-[#f3eee4] text-[#5c574c] transition-colors cursor-pointer"
-              title={soundEnabled ? 'Mute tone' : 'Enable tone'}
+              className="p-3.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer"
+              title={soundEnabled ? 'Mute audio cues' : 'Enable audio cues'}
             >
-              {soundEnabled ? <Volume2 className="w-4 h-4 text-[#4f7c6f]" /> : <VolumeX className="w-4 h-4" />}
+              {soundEnabled ? <Volume2 className="w-4 h-4 text-emerald-600" /> : <VolumeX className="w-4 h-4" />}
             </button>
           </div>
         </div>
@@ -501,11 +564,11 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
 
       {/* TAB 2: 5-4-3-2-1 GROUNDING */}
       {activeTab === 'grounding' && (
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#e8e0d0] shadow-sm space-y-6">
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
           <div className="space-y-1">
-            <h3 className="text-xl font-bold text-[#1c1a16]">5-4-3-2-1 Sensory Grounding</h3>
-            <p className="text-xs text-[#5c574c]">
-              When thoughts spiral or you experience panic, sensory grounding brings your focus safely back to the room.
+            <h3 className="text-xl font-bold text-slate-900">5-4-3-2-1 Sensory Grounding</h3>
+            <p className="text-xs text-slate-600">
+              When racing thoughts or anxiety detach you from the moment, sensory grounding anchors you back into physical safety.
             </p>
           </div>
 
@@ -517,10 +580,10 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
                 onClick={() => setCurrentGroundingStep(idx)}
                 className={`flex-1 min-w-[70px] p-2.5 rounded-xl border text-center cursor-pointer transition-all ${
                   currentGroundingStep === idx
-                    ? 'border-[#4f7c6f] bg-[#4f7c6f]/10 text-[#4f7c6f] font-bold'
+                    ? 'border-emerald-600 bg-emerald-50 text-emerald-800 font-bold'
                     : idx < currentGroundingStep
-                    ? 'border-[#e8e0d0] bg-[#f3eee4] text-[#5c574c]'
-                    : 'border-[#f3eee4] text-[#8a8578]'
+                    ? 'border-slate-200 bg-slate-50 text-slate-600'
+                    : 'border-slate-100 text-slate-400'
                 }`}
               >
                 <div className="text-base font-mono font-bold">{step.count}</div>
@@ -530,16 +593,16 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
           </div>
 
           {/* Current Step Content */}
-          <div className="p-6 bg-[#f3eee4] rounded-2xl border border-[#e8e0d0] space-y-4">
+          <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-4">
             <div className="flex items-center gap-3">
-              <span className="w-10 h-10 rounded-xl bg-[#212b4a] text-white flex items-center justify-center font-bold text-lg font-mono">
+              <span className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-lg font-mono">
                 {groundingSteps[currentGroundingStep].count}
               </span>
               <div>
-                <h4 className="text-sm font-bold text-[#1c1a16]">
+                <h4 className="text-sm font-bold text-slate-900">
                   {groundingSteps[currentGroundingStep].label}
                 </h4>
-                <p className="text-xs text-[#5c574c]">
+                <p className="text-xs text-slate-600">
                   {groundingSteps[currentGroundingStep].hint}
                 </p>
               </div>
@@ -547,19 +610,19 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
 
             <textarea
               rows={3}
-              placeholder="Type what you notice right now (optional, or just observe quietly in your mind)..."
+              placeholder="Type what you notice right now (optional, or observe quietly in your mind)..."
               value={groundingInputs[currentGroundingStep] || ''}
               onChange={(e) =>
                 setGroundingInputs({ ...groundingInputs, [currentGroundingStep]: e.target.value })
               }
-              className="w-full p-3 text-xs bg-white rounded-xl border border-[#e8e0d0] focus:outline-none focus:ring-2 focus:ring-[#4f7c6f]"
+              className="w-full p-3 text-xs bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
 
             <div className="flex justify-between items-center pt-2">
               <button
                 disabled={currentGroundingStep === 0}
                 onClick={() => setCurrentGroundingStep((s) => s - 1)}
-                className="px-4 py-2 text-xs font-semibold text-[#5c574c] hover:text-[#1c1a16] disabled:opacity-30 cursor-pointer"
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 disabled:opacity-30 cursor-pointer"
               >
                 Previous Step
               </button>
@@ -567,14 +630,14 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
               {currentGroundingStep < groundingSteps.length - 1 ? (
                 <button
                   onClick={() => setCurrentGroundingStep((s) => s + 1)}
-                  className="px-5 py-2.5 bg-[#4f7c6f] hover:bg-[#3a5d53] text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer"
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer"
                 >
                   Next Step ({groundingSteps[currentGroundingStep + 1].count})
                 </button>
               ) : (
                 <button
                   onClick={handleFinishGrounding}
-                  className="px-5 py-2.5 bg-[#e8a33d] hover:bg-[#c9822a] text-[#1c1a16] text-xs font-bold rounded-xl shadow-xs cursor-pointer"
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer"
                 >
                   Complete Grounding Session
                 </button>
@@ -584,124 +647,209 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
         </div>
       )}
 
-      {/* TAB 3: TEXT EMOTION JOURNAL */}
-      {activeTab === 'journal' && (
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#e8e0d0] shadow-sm space-y-6">
-          <div>
-            <h3 className="text-xl font-bold text-[#1c1a16]">AI Reflective Emotion Journal</h3>
-            <p className="text-xs text-[#5c574c] mt-1">
-              Write out your raw thoughts and feelings. Our AI wellness engine generates validating, culturally grounded insights and gentle micro-actions.
-            </p>
-          </div>
-
-          {/* Tags Selectors */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-[#1c1a16] mb-1.5">How are you feeling?</label>
-              <select
-                value={journalMood}
-                onChange={(e) => setJournalMood(e.target.value as MoodType)}
-                className="w-full p-2.5 text-xs rounded-xl border border-[#e8e0d0] bg-[#f3eee4]/50 focus:bg-white"
-              >
-                <option value="Anxious">Anxious / Nervous</option>
-                <option value="Overwhelmed">Overwhelmed / Burdened</option>
-                <option value="Down">Down / Sad</option>
-                <option value="Neutral">Neutral / Floating</option>
-                <option value="Hopeful">Hopeful / Determined</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-[#1c1a16] mb-1.5">Primary Area</label>
-              <select
-                value={journalStressor}
-                onChange={(e) => setJournalStressor(e.target.value as StressorCategory)}
-                className="w-full p-2.5 text-xs rounded-xl border border-[#e8e0d0] bg-[#f3eee4]/50 focus:bg-white"
-              >
-                {STRESSORS.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Writing Area */}
-          <div>
-            <label className="block text-xs font-bold text-[#1c1a16] mb-1.5">Your Thoughts (Unfiltered & Safe)</label>
-            <textarea
-              rows={5}
-              placeholder="Write anything on your mind... exam pressure, missing home, feeling stuck, or small wins..."
-              value={journalText}
-              onChange={(e) => setJournalText(e.target.value)}
-              className="w-full p-4 text-xs sm:text-sm rounded-xl border border-[#e8e0d0] bg-[#f3eee4]/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#4f7c6f] leading-relaxed"
-            />
-          </div>
-
-          <button
-            onClick={handleSaveJournal}
-            disabled={!journalText.trim() || isGeneratingReflection}
-            className="w-full py-3 bg-[#212b4a] hover:bg-[#161d34] disabled:opacity-40 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
-          >
-            <Sparkles className="w-4 h-4 text-[#e8a33d]" />
-            {isGeneratingReflection ? 'AI is generating reflection...' : 'Save & Get AI Reflection'}
-          </button>
-
-          {/* AI Reflection Result */}
-          {aiReflection && (
-            <div className="p-5 bg-gradient-to-br from-[#f3eee4] to-[#e8e0d0] rounded-2xl border border-[#e8e0d0] space-y-2 animate-in fade-in">
-              <div className="flex items-center gap-2 text-xs font-bold text-[#4f7c6f]">
-                <Sparkles className="w-4 h-4" />
-                <span>AI Reflection & Comfort</span>
-              </div>
-              <p className="text-xs sm:text-sm text-[#1c1a16] leading-relaxed italic">
-                "{aiReflection}"
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* TAB 4: VOICE JOURNALING (VULAVULA STT & SENTIMENT ANALYSIS) */}
+      {/* TAB 3: VOICE JOURNALING */}
       {activeTab === 'voice' && (
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#e8e0d0] shadow-sm space-y-6">
-          {/* Header */}
-          <div className="flex flex-wrap items-start justify-between gap-4 pb-2 border-b border-[#e8e0d0]/60">
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
+          <div className="flex flex-wrap items-start justify-between gap-4 pb-2 border-b border-slate-100">
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-xl font-bold text-[#1c1a16]">Voice Journaling</h3>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
-                  <BrainCircuit className="w-3 h-3 text-emerald-600" />
-                  Vulavula Speech & Sentiment
+                <h3 className="text-xl font-bold text-slate-900">Multilingual Voice Journaling</h3>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-emerald-600" />
+                  Voice Telemetry
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono text-slate-600 bg-slate-100 border border-slate-200">
+                  {voiceEntries.length} Voice Logs
                 </span>
               </div>
-              <p className="text-xs text-[#5c574c] mt-1 max-w-xl">
-                Speak freely in your mother tongue. Vulavula transcribes your voice, gauges your real-time emotional telemetry, and generates grounding affirmations.
+              <p className="text-xs text-slate-600 mt-1 max-w-xl">
+                Speak freely in your mother tongue. Transcribe your voice, measure emotional sentiment, and generate AI speech pattern summary reports.
               </p>
             </div>
 
-            {/* Language Selection */}
-            <div className="flex items-center gap-2 bg-[#f3eee4] p-1.5 rounded-xl border border-[#e8e0d0]">
-              <Languages className="w-3.5 h-3.5 text-[#4f7c6f]" />
-              <select
-                value={voiceLanguage}
-                onChange={(e) => setVoiceLanguage(e.target.value)}
-                className="bg-transparent text-xs font-bold text-[#1c1a16] focus:outline-none cursor-pointer"
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Summary Report Trigger Button */}
+              <button
+                onClick={handleGenerateSummaryReport}
+                disabled={isGeneratingSummary}
+                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
               >
-                {LANGUAGES.map((lang) => (
-                  <option key={lang.code} value={lang.name}>
-                    {lang.name} ({lang.nativeName})
-                  </option>
-                ))}
-              </select>
+                <Sparkles className={`w-3.5 h-3.5 ${isGeneratingSummary ? 'animate-spin' : ''}`} />
+                <span>{isGeneratingSummary ? 'Analyzing...' : 'AI Sentiment Report'}</span>
+              </button>
+
+              {/* Language Selection */}
+              <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+                <Languages className="w-3.5 h-3.5 text-emerald-600" />
+                <select
+                  value={voiceLanguage}
+                  onChange={(e) => setVoiceLanguage(e.target.value)}
+                  className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+                >
+                  {LANGUAGES.map((lang) => (
+                    <option key={lang.code} value={lang.name}>
+                      {lang.name} ({lang.nativeName})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
-          {/* Topic / Prompt Selection */}
+          {/* Quick AI Summary & Telemetry Bar */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50/80 to-teal-50/60 border border-emerald-200/80 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Brain className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xs sm:text-sm font-bold text-emerald-950">
+                    Speech Sentiment Longitudinal Analytics
+                  </h4>
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.2 rounded-full border border-emerald-200">
+                    {voiceEntries.length > 0
+                      ? `${voiceEntries.length} Recorded Entries`
+                      : 'Awaiting Recordings'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-emerald-800/90 leading-tight">
+                  Track recurring themes, verbal catharsis, and emotional trajectory across your campus semester.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowHistoryDrawer((s) => !s)}
+                className="px-3 py-1.5 rounded-xl bg-white border border-emerald-200 hover:bg-emerald-50 text-emerald-900 text-xs font-semibold flex items-center gap-1 cursor-pointer transition-all shadow-xs"
+              >
+                <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Voice History ({voiceEntries.length})</span>
+                {showHistoryDrawer ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+
+              <button
+                onClick={handleGenerateSummaryReport}
+                disabled={isGeneratingSummary}
+                className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-all disabled:opacity-50"
+              >
+                <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Generate Summary Report</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Historical Voice Entries Drawer */}
+          {showHistoryDrawer && (
+            <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                <div className="flex items-center gap-2">
+                  <Mic className="w-4 h-4 text-emerald-600" />
+                  <h4 className="text-xs font-bold text-slate-800">
+                    Recent Voice Journal Recordings ({voiceEntries.length})
+                  </h4>
+                </div>
+                <button
+                  onClick={handleGenerateSummaryReport}
+                  className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Run AI Sentiment Analysis on History</span>
+                </button>
+              </div>
+
+              {voiceEntries.length === 0 ? (
+                <div className="py-6 text-center text-xs text-slate-500">
+                  No voice reflections recorded yet. Record your first voice log above!
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {voiceEntries.map((entry) => (
+                    <div
+                      key={entry.id}
+                      onClick={() => setPreviewingHistoryEntry(previewingHistoryEntry?.id === entry.id ? null : entry)}
+                      className={`p-4 rounded-xl border transition-all cursor-pointer text-left space-y-2 ${
+                        previewingHistoryEntry?.id === entry.id
+                          ? 'bg-emerald-50/70 border-emerald-300 ring-1 ring-emerald-400'
+                          : 'bg-white border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[11px] font-bold text-slate-800 truncate max-w-[160px]">
+                              {entry.topic}
+                            </span>
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-slate-100 text-slate-600">
+                              {entry.language}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-slate-400">
+                            {new Date(entry.timestamp).toLocaleString([], {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="px-2 py-0.5 rounded-lg text-xs font-mono font-bold bg-emerald-100 text-emerald-800">
+                            {entry.sentimentScore}%
+                          </span>
+                          <button
+                            onClick={(e) => handleDeleteVoiceEntry(entry.id, e)}
+                            className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
+                            title="Delete entry"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-slate-700 line-clamp-2 italic">
+                        "{entry.transcript}"
+                      </p>
+
+                      <div className="flex flex-wrap items-center gap-1 pt-1">
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                          {entry.detectedMood}
+                        </span>
+                        {entry.primaryThemes?.slice(0, 2).map((t, i) => (
+                          <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Expanded entry inspection */}
+                      {previewingHistoryEntry?.id === entry.id && (
+                        <div className="pt-3 mt-2 border-t border-emerald-200/80 space-y-2 text-xs text-slate-800">
+                          <div className="p-2.5 rounded-lg bg-white border border-emerald-200/60">
+                            <span className="font-bold text-slate-700 block mb-0.5">AI Companion Reflection:</span>
+                            <p className="text-slate-600 text-[11px] leading-relaxed">{entry.reflection}</p>
+                          </div>
+                          {entry.culturalInsight && (
+                            <div className="text-[11px] text-amber-900 italic flex items-start gap-1.5">
+                              <Sparkles className="w-3 h-3 text-amber-600 shrink-0 mt-0.5" />
+                              <span>{entry.culturalInsight}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Topic Prompts */}
           <div className="space-y-2">
-            <label className="block text-xs font-bold text-[#1c1a16]">
-              Choose a voice reflection prompt (or speak freely):
+            <label className="block text-xs font-bold text-slate-700">
+              Choose a reflection prompt (or speak freely):
             </label>
             <div className="flex flex-wrap gap-2">
               {voicePrompts.map((p) => (
@@ -710,8 +858,8 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
                   onClick={() => setVoiceTopic(p)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer ${
                     voiceTopic === p
-                      ? 'bg-[#212b4a] text-white border-[#212b4a] shadow-xs font-semibold'
-                      : 'bg-[#f3eee4]/60 text-[#5c574c] border-[#e8e0d0] hover:bg-[#e8e0d0]'
+                      ? 'bg-slate-900 text-white border-slate-900 font-semibold'
+                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                   }`}
                 >
                   {p}
@@ -720,13 +868,9 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
             </div>
           </div>
 
-          {/* Voice Recorder Center Stage */}
-          <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 text-white rounded-3xl p-6 sm:p-8 text-center space-y-6 relative overflow-hidden border border-slate-800">
-            {/* Background Glow */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-
+          {/* Recorder Stage */}
+          <div className="bg-slate-900 text-white rounded-3xl p-6 sm:p-8 text-center space-y-6 relative overflow-hidden border border-slate-800">
             <div className="relative z-10 space-y-4">
-              {/* Status Header */}
               <div className="flex items-center justify-center gap-2 text-xs font-mono">
                 {recordingState === 'recording' ? (
                   <span className="flex items-center gap-2 px-3 py-1 bg-rose-500/20 text-rose-300 border border-rose-500/40 rounded-full animate-pulse">
@@ -736,29 +880,28 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
                 ) : recordingState === 'recorded' ? (
                   <span className="flex items-center gap-2 px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full">
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    Audio Recorded ({recordingSeconds}s) · Ready for Vulavula
+                    Audio Recorded ({recordingSeconds}s) · Ready for Analysis
                   </span>
                 ) : recordingState === 'processing' ? (
                   <span className="flex items-center gap-2 px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-full animate-pulse">
-                    <BrainCircuit className="w-3.5 h-3.5 animate-spin" />
-                    Vulavula is transcribing & analyzing sentiment...
+                    <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                    Transcribing & analyzing sentiment...
                   </span>
                 ) : recordingState === 'done' ? (
                   <span className="flex items-center gap-2 px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                     Transcription & Sentiment Analysis Complete
                   </span>
                 ) : (
                   <span className="text-slate-400 flex items-center gap-1.5">
                     <Radio className="w-3.5 h-3.5 text-emerald-400" />
-                    Tap microphone and speak your unfiltered reflection
+                    Tap microphone to record your spoken reflection
                   </span>
                 )}
               </div>
 
-              {/* Dynamic Sound Wave & Microphone Button */}
+              {/* Wave & Mic Button */}
               <div className="py-2 flex flex-col items-center justify-center gap-4">
-                {/* Wave Bars */}
                 {recordingState === 'recording' && (
                   <div className="flex items-center justify-center gap-1.5 h-12">
                     {[16, 28, 44, 22, 36, 48, 20, 40, 32, 18, 42, 26].map((h, i) => (
@@ -775,34 +918,28 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
                   </div>
                 )}
 
-                {/* Big Mic Button */}
-                <div className="relative">
-                  {recordingState === 'recording' && (
-                    <div className="absolute inset-0 rounded-full bg-rose-500/30 animate-ping" />
+                <button
+                  onClick={
+                    recordingState === 'idle'
+                      ? startRecording
+                      : recordingState === 'recording'
+                      ? stopRecording
+                      : startRecording
+                  }
+                  className={`w-20 h-20 rounded-full flex items-center justify-center shadow-xl transition-all cursor-pointer ${
+                    recordingState === 'recording'
+                      ? 'bg-rose-600 hover:bg-rose-700 text-white scale-105'
+                      : recordingState === 'recorded' || recordingState === 'done'
+                      ? 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white hover:scale-105'
+                  }`}
+                >
+                  {recordingState === 'recording' ? (
+                    <Square className="w-7 h-7 fill-current" />
+                  ) : (
+                    <Mic className="w-8 h-8" />
                   )}
-                  <button
-                    onClick={
-                      recordingState === 'idle'
-                        ? startRecording
-                        : recordingState === 'recording'
-                        ? stopRecording
-                        : startRecording
-                    }
-                    className={`w-20 h-20 rounded-full flex items-center justify-center shadow-xl transition-all cursor-pointer relative z-10 ${
-                      recordingState === 'recording'
-                        ? 'bg-rose-600 hover:bg-rose-700 text-white scale-105'
-                        : recordingState === 'recorded' || recordingState === 'done'
-                        ? 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700'
-                        : 'bg-gradient-to-tr from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white hover:scale-105'
-                    }`}
-                  >
-                    {recordingState === 'recording' ? (
-                      <Square className="w-8 h-8 fill-current" />
-                    ) : (
-                      <Mic className="w-8 h-8" />
-                    )}
-                  </button>
-                </div>
+                </button>
 
                 <div className="text-xs text-slate-300 font-medium">
                   {recordingState === 'recording'
@@ -813,7 +950,7 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
                 </div>
               </div>
 
-              {/* Audio Playback & Actions */}
+              {/* Audio Playback */}
               {audioUrl && (
                 <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 flex items-center justify-between gap-3 max-w-md mx-auto">
                   <audio
@@ -832,7 +969,7 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
                 </div>
               )}
 
-              {/* Mic permission helper or text fallback */}
+              {/* Fallback Input */}
               {micPermissionError && (
                 <div className="p-3 bg-amber-950/40 border border-amber-800/60 rounded-xl text-xs text-amber-200 text-left space-y-2">
                   <div className="flex items-center gap-2 font-semibold">
@@ -857,11 +994,11 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
                   disabled={recordingState === 'recording' || recordingState === 'processing'}
                   className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold text-xs sm:text-sm shadow-md flex items-center gap-2 transition-all cursor-pointer"
                 >
-                  <BrainCircuit className="w-4 h-4" />
+                  <Brain className="w-4 h-4" />
                   <span>
                     {recordingState === 'processing'
-                      ? 'Vulavula Transcribing & Analyzing...'
-                      : 'Transcribe & Analyze with Vulavula'}
+                      ? 'Transcribing & Analyzing...'
+                      : 'Transcribe & Generate Insights'}
                   </span>
                 </button>
 
@@ -877,62 +1014,61 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
             </div>
           </div>
 
-          {/* VULAVULA TRANSCRIPTION & SENTIMENT RESULTS */}
+          {/* Results Display */}
           {voiceResult && (
-            <div className="bg-[#f3eee4] rounded-3xl p-6 sm:p-8 border border-[#e8e0d0] space-y-6 animate-in fade-in">
-              <div className="flex items-center justify-between pb-3 border-b border-[#e8e0d0]">
+            <div className="bg-slate-50 rounded-3xl p-6 sm:p-8 border border-slate-200 space-y-6">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-[#212b4a] text-white flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center">
                     <Sparkles className="w-4 h-4 text-emerald-400" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-[#1c1a16]">
-                      Vulavula Voice Telemetry & Reflection
+                    <h4 className="text-sm font-bold text-slate-900">
+                      Voice Telemetry & Reflection
                     </h4>
-                    <span className="text-[11px] text-[#5c574c]">
+                    <span className="text-[11px] text-slate-500">
                       Language: {voiceLanguage} · Topic: {voiceTopic}
                     </span>
                   </div>
                 </div>
 
-                {/* Sentiment Gauge Pill */}
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-[#e8e0d0] shadow-xs">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-slate-200 shadow-xs">
                   <Activity className="w-4 h-4 text-emerald-600" />
-                  <span className="text-xs font-bold text-[#1c1a16]">
-                    Sentiment Index: <span className="font-mono text-emerald-600">{voiceResult.sentimentScore}%</span>
+                  <span className="text-xs font-bold text-slate-800">
+                    Sentiment: <span className="font-mono text-emerald-600">{voiceResult.sentimentScore}%</span>
                   </span>
                 </div>
               </div>
 
-              {/* Transcription Card */}
-              <div className="bg-white rounded-2xl p-5 border border-[#e8e0d0] shadow-xs space-y-2 relative">
-                <div className="flex items-center justify-between text-xs text-[#5c574c]">
-                  <span className="font-bold text-[#212b4a] flex items-center gap-1.5">
-                    <MessageSquareQuote className="w-4 h-4 text-[#4f7c6f]" />
-                    Vulavula Spoken Transcript
+              {/* Transcript */}
+              <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-2">
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <MessageSquareQuote className="w-4 h-4 text-emerald-600" />
+                    Spoken Transcript
                   </span>
                   <button
                     onClick={copyTranscript}
-                    className="flex items-center gap-1 text-[11px] font-semibold text-[#4f7c6f] hover:text-[#3a5d53] cursor-pointer"
+                    className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 cursor-pointer"
                   >
                     {copiedTranscript ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                     <span>{copiedTranscript ? 'Copied' : 'Copy'}</span>
                   </button>
                 </div>
-                <p className="text-xs sm:text-sm text-[#1c1a16] leading-relaxed font-sans italic bg-[#f3eee4]/30 p-3 rounded-xl border border-[#e8e0d0]/50">
+                <p className="text-xs sm:text-sm text-slate-800 leading-relaxed italic bg-slate-50 p-3 rounded-xl border border-slate-100">
                   "{voiceResult.transcript}"
                 </p>
               </div>
 
-              {/* Detected Themes & Emotional State */}
+              {/* State & Themes */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-white rounded-2xl p-4 border border-[#e8e0d0] space-y-2">
-                  <span className="text-xs font-bold text-[#5c574c] block">Detected Emotional State</span>
+                <div className="bg-white rounded-2xl p-4 border border-slate-200 space-y-2">
+                  <span className="text-xs font-bold text-slate-500 block">Detected Emotional State</span>
                   <div className="flex items-center gap-2">
                     <span className="px-3 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-bold text-xs border border-emerald-200">
                       {voiceResult.detectedMood}
                     </span>
-                    <span className="text-xs text-[#5c574c]">
+                    <span className="text-xs text-slate-500">
                       {voiceResult.sentimentScore >= 70
                         ? 'Grounded & Optimistic'
                         : voiceResult.sentimentScore >= 45
@@ -942,13 +1078,13 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
                   </div>
                 </div>
 
-                <div className="bg-white rounded-2xl p-4 border border-[#e8e0d0] space-y-2">
-                  <span className="text-xs font-bold text-[#5c574c] block">Primary Life Themes</span>
+                <div className="bg-white rounded-2xl p-4 border border-slate-200 space-y-2">
+                  <span className="text-xs font-bold text-slate-500 block">Primary Life Themes</span>
                   <div className="flex flex-wrap gap-1.5">
                     {voiceResult.primaryThemes.map((theme, i) => (
                       <span
                         key={i}
-                        className="px-2.5 py-0.5 rounded-md bg-[#f3eee4] text-[#1c1a16] text-[11px] font-medium border border-[#e8e0d0]"
+                        className="px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-800 text-[11px] font-medium border border-slate-200"
                       >
                         {theme}
                       </span>
@@ -957,26 +1093,24 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
                 </div>
               </div>
 
-              {/* AI Reflection & Guidance */}
-              <div className="p-5 bg-gradient-to-br from-[#212b4a] to-[#161d34] text-white rounded-2xl shadow-md space-y-3">
+              {/* Reflection Card */}
+              <div className="p-5 bg-slate-900 text-white rounded-2xl shadow-sm space-y-3">
                 <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
                   <HeartHandshake className="w-4 h-4" />
                   <span>AI Wellness Companion Reflection</span>
                 </div>
-                <p className="text-xs sm:text-sm text-slate-100 leading-relaxed font-sans">
+                <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
                   {voiceResult.reflection}
                 </p>
-
-                {/* Cultural / Ubuntu Wisdom */}
                 {voiceResult.culturalInsight && (
-                  <div className="pt-3 border-t border-slate-700/60 text-xs text-amber-300/90 italic flex items-start gap-2">
+                  <div className="pt-3 border-t border-slate-800 text-xs text-amber-300/90 italic flex items-start gap-2">
                     <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
                     <span>{voiceResult.culturalInsight}</span>
                   </div>
                 )}
               </div>
 
-              {/* Actionable Micro-Step */}
+              {/* Micro-Action */}
               {voiceResult.suggestedMicroAction && (
                 <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
@@ -1002,35 +1136,110 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
         </div>
       )}
 
+      {/* TAB 4: TEXT EMOTION JOURNAL */}
+      {activeTab === 'journal' && (
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
+          <div>
+            <h3 className="text-xl font-bold text-slate-900">AI Reflective Emotion Journal</h3>
+            <p className="text-xs text-slate-600 mt-1">
+              Write out your unfiltered thoughts. Receive validating, culturally grounded insights and gentle micro-actions.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">How are you feeling?</label>
+              <select
+                value={journalMood}
+                onChange={(e) => setJournalMood(e.target.value as MoodType)}
+                className="w-full p-2.5 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none"
+              >
+                <option value="Anxious">Anxious / Nervous</option>
+                <option value="Overwhelmed">Overwhelmed / Burdened</option>
+                <option value="Down">Down / Sad</option>
+                <option value="Neutral">Neutral / Floating</option>
+                <option value="Hopeful">Hopeful / Determined</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">Primary Area</label>
+              <select
+                value={journalStressor}
+                onChange={(e) => setJournalStressor(e.target.value as StressorCategory)}
+                className="w-full p-2.5 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none"
+              >
+                {STRESSORS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">Your Thoughts (Unfiltered & Safe)</label>
+            <textarea
+              rows={5}
+              placeholder="Write anything on your mind... exam pressure, missing home, feeling stuck, or small wins..."
+              value={journalText}
+              onChange={(e) => setJournalText(e.target.value)}
+              className="w-full p-4 text-xs sm:text-sm rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed"
+            />
+          </div>
+
+          <button
+            onClick={handleSaveJournal}
+            disabled={!journalText.trim() || isGeneratingReflection}
+            className="w-full py-3 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white font-bold text-xs sm:text-sm rounded-xl shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4 text-emerald-400" />
+            {isGeneratingReflection ? 'Composing supportive reflection...' : 'Save & Get Supportive Reflection'}
+          </button>
+
+          {aiReflection && (
+            <div className="p-5 bg-emerald-50/70 rounded-2xl border border-emerald-200 space-y-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-emerald-800">
+                <Sparkles className="w-4 h-4" />
+                <span>Supportive Reflection & Grounding</span>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-800 leading-relaxed italic">
+                "{aiReflection}"
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* TAB 5: DAILY CHECK-IN */}
       {activeTab === 'checkin' && (
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#e8e0d0] shadow-sm space-y-6">
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
           <div>
-            <h3 className="text-xl font-bold text-[#1c1a16]">Daily 30-Second Mental Check-In</h3>
-            <p className="text-xs text-[#5c574c]">
-              Logging your daily mood builds long-term self-awareness and tunes your real-time AI recommendations.
+            <h3 className="text-xl font-bold text-slate-900">Daily 30-Second Mental Check-In</h3>
+            <p className="text-xs text-slate-600">
+              Logging daily mood builds steady emotional awareness and refines your personalized recommendations.
             </p>
           </div>
 
           {checkinDone ? (
-            <div className="p-8 text-center bg-[#4f7c6f]/10 border border-[#4f7c6f]/30 rounded-2xl space-y-3">
-              <CheckCircle2 className="w-10 h-10 text-[#4f7c6f] mx-auto" />
-              <h4 className="text-sm font-bold text-[#1c1a16]">Daily Check-in Logged!</h4>
-              <p className="text-xs text-[#5c574c] max-w-sm mx-auto">
-                Your activity radar and recommendations have been recalculated for today.
+            <div className="p-8 text-center bg-emerald-50 border border-emerald-200 rounded-2xl space-y-3">
+              <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto" />
+              <h4 className="text-sm font-bold text-slate-900">Daily Check-in Logged!</h4>
+              <p className="text-xs text-slate-600 max-w-sm mx-auto">
+                Your activity history and personalized recommendations have been updated.
               </p>
               <button
                 onClick={() => setCheckinDone(false)}
-                className="text-xs font-bold text-[#4f7c6f] underline pt-2 cursor-pointer"
+                className="text-xs font-bold text-emerald-700 underline pt-2 cursor-pointer"
               >
                 Log another update
               </button>
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Mood Selector Chips */}
               <div>
-                <label className="block text-xs font-bold text-[#1c1a16] mb-2">Overall Mood Today</label>
+                <label className="block text-xs font-bold text-slate-700 mb-2">Overall Mood Today</label>
                 <div className="flex flex-wrap gap-2">
                   {(['Great', 'Good', 'Neutral', 'Anxious', 'Stressed', 'Down', 'Overwhelmed'] as MoodType[]).map((m) => (
                     <button
@@ -1038,8 +1247,8 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
                       onClick={() => setCheckinMood(m)}
                       className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
                         checkinMood === m
-                          ? 'bg-[#212b4a] text-white border-[#212b4a] shadow-xs'
-                          : 'bg-[#f3eee4] text-[#1c1a16] border-[#e8e0d0] hover:bg-[#e8e0d0]'
+                          ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                       }`}
                     >
                       {m}
@@ -1048,11 +1257,10 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
                 </div>
               </div>
 
-              {/* Energy Level Slider */}
               <div>
-                <div className="flex justify-between text-xs font-bold text-[#1c1a16] mb-2">
+                <div className="flex justify-between text-xs font-bold text-slate-700 mb-2">
                   <span>Physical Energy Level</span>
-                  <span className="font-mono text-[#4f7c6f]">{energyLevel} / 5</span>
+                  <span className="font-mono text-emerald-600">{energyLevel} / 5</span>
                 </div>
                 <input
                   type="range"
@@ -1060,22 +1268,21 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
                   max={5}
                   value={energyLevel}
                   onChange={(e) => setEnergyLevel(parseInt(e.target.value))}
-                  className="w-full accent-[#4f7c6f] cursor-pointer"
+                  className="w-full accent-emerald-600 cursor-pointer"
                 />
-                <div className="flex justify-between text-[10px] text-[#8a8578] mt-1">
+                <div className="flex justify-between text-[10px] text-slate-400 mt-1">
                   <span>1: Drained</span>
                   <span>3: Moderate</span>
                   <span>5: Energized</span>
                 </div>
               </div>
 
-              {/* Stressor Category */}
               <div>
-                <label className="block text-xs font-bold text-[#1c1a16] mb-2">Biggest Stress Factor Right Now</label>
+                <label className="block text-xs font-bold text-slate-700 mb-2">Biggest Stress Factor Right Now</label>
                 <select
                   value={checkinStressor}
                   onChange={(e) => setCheckinStressor(e.target.value as StressorCategory)}
-                  className="w-full p-3 text-xs rounded-xl border border-[#e8e0d0] bg-[#f3eee4]/60 focus:bg-white"
+                  className="w-full p-3 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white"
                 >
                   {STRESSORS.map((s) => (
                     <option key={s} value={s}>
@@ -1087,7 +1294,7 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
 
               <button
                 onClick={handleCompleteCheckin}
-                className="w-full py-3.5 bg-[#4f7c6f] hover:bg-[#3a5d53] text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all cursor-pointer"
+                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-sm transition-all cursor-pointer"
               >
                 Save Today's Check-In
               </button>
@@ -1095,6 +1302,17 @@ export const CopingTools: React.FC<CopingToolsProps> = ({
           )}
         </div>
       )}
+
+      {/* Voice Speech Sentiment Summary Report Modal */}
+      <VoiceSummaryReportModal
+        isOpen={isSummaryModalOpen}
+        onClose={() => setIsSummaryModalOpen(false)}
+        report={summaryReport}
+        isLoading={isGeneratingSummary}
+        onRegenerate={handleGenerateSummaryReport}
+        voiceEntries={voiceEntries}
+        onOpenTool={(tool) => setActiveTab(tool as any)}
+      />
     </div>
   );
 };

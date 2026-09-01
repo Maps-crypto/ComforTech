@@ -45,6 +45,7 @@ export type StressorCategory =
 export type MoodType =
   | 'Great'
   | 'Good'
+  | 'Hopeful'
   | 'Neutral'
   | 'Anxious'
   | 'Stressed'
@@ -71,6 +72,53 @@ export interface VoiceJournalResult {
   culturalInsight?: string;
   suggestedMicroAction?: string;
   audioDurationSeconds?: number;
+}
+
+export interface VoiceJournalEntry {
+  id: string;
+  transcript: string;
+  sentimentScore: number;
+  detectedMood: string;
+  primaryThemes: string[];
+  reflection: string;
+  culturalInsight?: string;
+  suggestedMicroAction?: string;
+  audioDurationSeconds?: number;
+  language: string;
+  topic: string;
+  timestamp: string;
+}
+
+export interface VoiceSpeechPattern {
+  pattern: string;
+  description: string;
+  triggerOrContext: string;
+  frequency: 'frequent' | 'occasional' | 'emerging';
+}
+
+export interface VoiceEmotionalKeyword {
+  word: string;
+  sentimentType: 'positive' | 'stress' | 'grounded' | 'neutral';
+  frequencyCount: number;
+}
+
+export interface VoiceSentimentSummaryReport {
+  overallTrajectory: 'improving' | 'declining' | 'stabilizing' | 'fluctuating';
+  averageSentimentScore: number; // 0 - 100
+  totalEntriesAnalyzed: number;
+  totalDurationSeconds: number;
+  sentimentTrendSummary: string;
+  speechPatterns: VoiceSpeechPattern[];
+  dominantEmotionalKeywords: VoiceEmotionalKeyword[];
+  acousticAndCadenceInsights: string;
+  culturalAndContextualObservation: string;
+  keyStrengthsAndResilienceMarkers: string[];
+  actionableGrowthStrategies: {
+    title: string;
+    action: string;
+    reason: string;
+  }[];
+  generatedAt: string;
 }
 
 export interface CopingToolAction {
@@ -142,3 +190,70 @@ export interface CrisisContact {
   cost: string;
   category: '24/7 National' | 'Student Specific' | 'Emergency';
 }
+
+export type SALanguageCategory = 'Nguni' | 'Sotho-Tswana' | 'Tswa-Ronga' | 'Venda' | 'West Germanic' | 'Vernacular & Tsotsitaal';
+
+export interface LinguisticDataPoint {
+  id: string;
+  languageCode: LanguageCode | 'vernac';
+  languageName: string;
+  source: 'voice_journal' | 'chat_interaction' | 'peer_forum' | 'community_submission' | 'realtime_sensor';
+  phrase: string;
+  englishTranslation: string;
+  culturalContext: string;
+  emotionalSentiment: 'positive' | 'anxious' | 'grounded' | 'distressed' | 'neutral';
+  confidenceScore: number; // 0 - 100
+  verified: boolean;
+  upvotes: number;
+  regionOrCampus: string;
+  timestamp: string;
+}
+
+export interface LanguageModelTrainingStatus {
+  totalDataPoints: number;
+  languagesCovered: number;
+  activeEpochs: number;
+  trainingLoss: number;
+  asrAccuracyPercent: number;
+  vernacAlignmentScore: number;
+  lastFineTunedAt: string;
+  realTimeStreamActive: boolean;
+  vocabularySize: number;
+  languageBreakdown: {
+    code: string;
+    name: string;
+    nativeName: string;
+    family: SALanguageCategory;
+    samplesCount: number;
+    accuracyPercent: number;
+    status: 'optimal' | 'calibrating' | 'training';
+    recentSlangAdded: string[];
+  }[];
+}
+
+export interface BenchmarkTestResult {
+  inputText: string;
+  detectedLanguage: string;
+  languageCode: string;
+  confidencePercent: number;
+  englishTranslation: string;
+  culturalNuance: string;
+  detectedMood: string;
+  sentimentScore: number;
+  ubuntuResonanceScore: number;
+  modelResponseInDialect: string;
+  responseLatencyMs: number;
+  engine: string;
+  vernacularSlangDetected: string[];
+}
+
+export interface LinguisticContributionPayload {
+  languageCode: LanguageCode | 'vernac';
+  languageName: string;
+  phrase: string;
+  englishMeaning: string;
+  emotionalContext: string;
+  campusOrRegion: string;
+  contributorAlias?: string;
+}
+

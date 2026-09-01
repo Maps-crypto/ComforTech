@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { LANGUAGES } from '../data/mockData';
 import { sendChatMessage, fetchTriageAssessment } from '../services/api';
 import { ChatMessage, LanguageCode, UserProfile } from '../types';
+import { getTranslation } from '../utils/translations';
 import {
   Send,
   Sparkles,
@@ -16,6 +17,8 @@ import {
   Volume2,
   VolumeX,
   Radio,
+  User,
+  HeartHandshake
 } from 'lucide-react';
 
 interface ChatCompanionProps {
@@ -36,17 +39,35 @@ export const ChatCompanion: React.FC<ChatCompanionProps> = ({
   onOpenCounselor,
 }) => {
   const currentLang = LANGUAGES.find((l) => l.code === selectedLanguage) || LANGUAGES[0];
+  const t = getTranslation(selectedLanguage);
 
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     return [
       {
         id: 'msg_1',
         role: 'assistant',
-        content: `${currentLang.greeting}! I am comforTech, your AI Student Wellness Companion. How are you feeling in your mind and body today?`,
+        content: t.chat.initialGreeting || `${currentLang.greeting}! I am comforTech, your AI Student Wellness Companion. How are you feeling in your mind and body today?`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       },
     ];
   });
+
+  // When selected language changes, update initial greeting if conversation hasn't started yet
+  useEffect(() => {
+    setMessages((prev) => {
+      if (prev.length === 1 && prev[0].role === 'assistant') {
+        return [
+          {
+            id: 'msg_1',
+            role: 'assistant',
+            content: t.chat.initialGreeting || `${currentLang.greeting}! I am comforTech, your AI Student Wellness Companion. How are you feeling in your mind and body today?`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          },
+        ];
+      }
+      return prev;
+    });
+  }, [selectedLanguage]);
 
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -98,6 +119,7 @@ export const ChatCompanion: React.FC<ChatCompanionProps> = ({
           .map((result: any) => result[0])
           .map((result: any) => result.transcript)
           .join('');
+
         setInput(transcript);
       };
 
@@ -112,32 +134,50 @@ export const ChatCompanion: React.FC<ChatCompanionProps> = ({
 
       recognitionRef.current = recognition;
       recognition.start();
-    } catch (e) {
-      console.error('Speech recognition failed to initialize:', e);
+    } catch (err) {
+      console.error('Speech recognition failed to initialize:', err);
       setIsListening(false);
     }
   };
 
-  // Text-to-Speech (Lelapa Vulavula Voice Audio Synthesis)
-  const handleSpeak = (text: string, msgId: string) => {
-    if (activeAudioMessageId === msgId) {
-      window.speechSynthesis?.cancel();
+  // Text-to-Speech Synthesis
+  const handleSpeak = (text: string, messageId: string) => {
+    if (!window.speechSynthesis) return;
+
+    if (activeAudioMessageId === messageId) {
+      window.speechSynthesis.cancel();
       setActiveAudioMessageId(null);
       return;
     }
 
-    if (!('speechSynthesis' in window)) {
-      alert('Speech synthesis is not supported on this browser.');
-      return;
-    }
-
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
+
+    const cleanText = text
+      .replace(/[#*`_~]/g, '')
+      .replace(/https?:\/\/[^\s]+/g, '')
+      .trim();
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.rate = 0.95;
     utterance.pitch = 1.0;
 
+    const voices = window.speechSynthesis.getVoices();
+    let preferredVoice = voices.find((v) =>
+      v.lang.toLowerCase().includes('en-za') ||
+      v.name.toLowerCase().includes('south africa') ||
+      v.lang.toLowerCase().includes(currentLang.code)
+    );
+
+    if (!preferredVoice && voices.length > 0) {
+      preferredVoice = voices.find((v) => v.lang.startsWith('en')) || voices[0];
+    }
+
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+    }
+
     utterance.onstart = () => {
-      setActiveAudioMessageId(msgId);
+      setActiveAudioMessageId(messageId);
     };
 
     utterance.onend = () => {
@@ -149,53 +189,61 @@ export const ChatCompanion: React.FC<ChatCompanionProps> = ({
     };
 
     window.speechSynthesis.speak(utterance);
-    onActivityLogged('Vulavula Voice Readout', `Played audio for message (${currentLang.name})`, 60);
   };
 
-  const handleSendMessage = async (textToSend?: string) => {
-    const text = (textToSend || input).trim();
-    if (!text || isTyping) return;
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || isTyping) return;
 
-    const userMsg: ChatMessage = {
+    const userText = input.trim();
+    setInput('');
+
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    }
+
+    const newMsg: ChatMessage = {
       id: 'msg_' + Date.now(),
       role: 'user',
-      content: text,
+      content: userText,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
-    setInput('');
+    const updatedHistory = [...messages, newMsg];
+    setMessages(updatedHistory);
     setIsTyping(true);
-
-    // Log activity
-    onActivityLogged('AI Check-in Chat', `Messaged: "${text.substring(0, 35)}..."`, 45);
 
     try {
       const response = await sendChatMessage({
-        messages: [...messages, userMsg].map((m) => ({ role: m.role, content: m.content })),
+        messages: updatedHistory.map((m) => ({ role: m.role, content: m.content })),
         language: currentLang.name,
         languageCode: currentLang.code,
         userProfile,
       });
 
-      const assistantMsg: ChatMessage = {
-        id: 'msg_' + (Date.now() + 1),
+      const responseText = response.reply;
+      const aiMsgId = 'msg_' + (Date.now() + 1);
+      const aiMsg: ChatMessage = {
+        id: aiMsgId,
         role: 'assistant',
-        content: response.reply,
+        content: responseText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
 
-      setMessages((prev) => [...prev, assistantMsg]);
+      setMessages([...updatedHistory, aiMsg]);
 
-      // If voice mode is active, auto read out
       if (voiceModeActive) {
         setTimeout(() => {
-          handleSpeak(response.reply, assistantMsg.id);
+          handleSpeak(responseText, aiMsgId);
         }, 300);
       }
-    } catch (err) {
-      setMessages((prev) => [
-        ...prev,
+
+      onActivityLogged('AI Companion Conversation', `Chatted in ${currentLang.name}`, 60);
+    } catch (e) {
+      console.error(e);
+      setMessages([
+        ...updatedHistory,
         {
           id: 'msg_' + Date.now(),
           role: 'assistant',
@@ -243,7 +291,7 @@ export const ChatCompanion: React.FC<ChatCompanionProps> = ({
     setTriageResult(null);
   };
 
-  const quickPrompts = [
+  const quickPrompts = t.chat.chips && t.chat.chips.length > 0 ? t.chat.chips : [
     'Exam and test panic',
     'NSFAS food allowance delay',
     'Feeling lonely & isolated in res',
@@ -253,22 +301,22 @@ export const ChatCompanion: React.FC<ChatCompanionProps> = ({
   return (
     <div className="max-w-3xl mx-auto space-y-4">
       {/* Header Info */}
-      <div className="flex items-center justify-between bg-slate-900/90 rounded-2xl p-4 border border-slate-800 shadow-xl backdrop-blur-md">
+      <div className="flex items-center justify-between bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 flex items-center justify-center font-bold">
-            <Brain className="w-5 h-5" />
+          <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold">
+            <Brain className="w-5 h-5 text-emerald-400" />
           </div>
           <div>
-            <div className="text-sm font-bold text-slate-100 flex items-center gap-2">
-              Multimodal AI Companion
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold">
+            <div className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              {t.chat.title || 'Multilingual AI Student Companion'}
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
                 {currentLang.nativeName}
               </span>
             </div>
-            <div className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
-              <span>{userProfile.isAnonymous ? 'Guest (Zero Personal Data)' : `Signed In (${userProfile.displayName})`}</span>
+            <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
+              <span>{userProfile.isAnonymous ? t.nav.guestUser : `Signed In (${userProfile.displayName})`}</span>
               <span>·</span>
-              <span className="text-amber-400 font-mono text-[10px]">Vulavula Voice & Language Engine</span>
+              <span className="text-emerald-700 font-mono text-[10px]">Culturally Grounded</span>
             </div>
           </div>
         </div>
@@ -279,18 +327,18 @@ export const ChatCompanion: React.FC<ChatCompanionProps> = ({
             onClick={() => setVoiceModeActive(!voiceModeActive)}
             className={`p-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
               voiceModeActive
-                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-xs'
-                : 'text-slate-400 hover:text-slate-200 border-slate-800 bg-slate-950/60'
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-xs'
+                : 'text-slate-500 hover:text-slate-800 border-slate-200 bg-slate-50'
             }`}
             title="Toggle Auto Read Aloud (Voice-to-Voice Mode)"
           >
-            {voiceModeActive ? <Volume2 className="w-3.5 h-3.5 text-emerald-400" /> : <VolumeX className="w-3.5 h-3.5" />}
+            {voiceModeActive ? <Volume2 className="w-3.5 h-3.5 text-emerald-600" /> : <VolumeX className="w-3.5 h-3.5" />}
             <span className="hidden sm:inline text-[11px]">{voiceModeActive ? 'Voice ON' : 'Voice OFF'}</span>
           </button>
 
           <button
             onClick={handleRestart}
-            className="p-2 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-xl text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer border border-slate-800"
+            className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer border border-slate-200"
             title="Restart Conversation"
           >
             <RotateCcw className="w-4 h-4" />
@@ -299,17 +347,17 @@ export const ChatCompanion: React.FC<ChatCompanionProps> = ({
         </div>
       </div>
 
-      {/* Multimodal Banner */}
-      <div className="px-4 py-2 bg-slate-900/60 rounded-xl border border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+      {/* Multimodal Pill Banner */}
+      <div className="px-4 py-2 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-between text-[11px] text-slate-600">
         <div className="flex items-center gap-2">
-          <Radio className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
-          <span>Multimodal Enabled: <strong>Text-to-Text</strong>, <strong>Voice-to-Text (Mic)</strong>, <strong>Text-to-Voice (TTS)</strong></span>
+          <Radio className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+          <span>Multimodal: <strong>Text Chat</strong>, <strong>Voice Mic (STT)</strong>, <strong>Voice Readout (TTS)</strong></span>
         </div>
-        <span className="font-mono text-emerald-400 text-[10px]">11 SA Languages Supported</span>
+        <span className="font-mono text-emerald-800 font-bold text-[10px]">11 SA Languages Supported</span>
       </div>
 
       {/* Chat Thread Container */}
-      <div className="bg-slate-900/90 rounded-2xl border border-slate-800 shadow-xl overflow-hidden flex flex-col h-[480px] backdrop-blur-md">
+      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col h-[480px]">
         {/* Messages Scroll Area */}
         <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4">
           {messages.map((msg) => (
@@ -320,8 +368,8 @@ export const ChatCompanion: React.FC<ChatCompanionProps> = ({
               <div
                 className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs sm:text-sm leading-relaxed relative group ${
                   msg.role === 'user'
-                    ? 'bg-indigo-600 text-white rounded-br-none shadow-md shadow-indigo-600/20'
-                    : 'bg-slate-950/80 text-slate-100 rounded-bl-none border border-slate-800'
+                    ? 'bg-slate-900 text-white rounded-br-none shadow-xs'
+                    : 'bg-slate-50 text-slate-800 rounded-bl-none border border-slate-200/80'
                 }`}
               >
                 <div>{msg.content}</div>
@@ -330,35 +378,39 @@ export const ChatCompanion: React.FC<ChatCompanionProps> = ({
                 {msg.role === 'assistant' && (
                   <button
                     onClick={() => handleSpeak(msg.content, msg.id)}
-                    className="mt-2 pt-1 border-t border-slate-800/80 w-full flex items-center justify-between text-[10px] text-slate-400 hover:text-indigo-300 transition-colors cursor-pointer"
+                    className="mt-2 pt-1 border-t border-slate-200 w-full flex items-center justify-between text-[10px] text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
                   >
                     <span className="flex items-center gap-1 font-mono">
                       {activeAudioMessageId === msg.id ? (
                         <>
-                          <Volume2 className="w-3 h-3 text-emerald-400 animate-bounce" />
-                          <span className="text-emerald-400">Vulavula Speaking...</span>
+                          <Volume2 className="w-3 h-3 text-emerald-600 animate-bounce" />
+                          <span className="text-emerald-700 font-bold">Speaking...</span>
                         </>
                       ) : (
                         <>
-                          <Volume2 className="w-3 h-3 text-indigo-400" />
-                          <span>Listen (Vulavula TTS)</span>
+                          <Volume2 className="w-3 h-3 text-slate-600" />
+                          <span>Listen (TTS)</span>
                         </>
                       )}
                     </span>
                     {activeAudioMessageId === msg.id && (
-                      <span className="text-emerald-400 text-[9px] underline">Stop</span>
+                      <span className="text-emerald-700 text-[9px] underline">Stop</span>
                     )}
                   </button>
                 )}
               </div>
-              <span className="text-[10px] text-slate-500 mt-1 px-1">{msg.timestamp}</span>
+              <span className="text-[10px] text-slate-400 mt-1 px-1">
+                {msg.role === 'user' ? 'You' : 'Companion'} · {msg.timestamp}
+              </span>
             </div>
           ))}
 
           {isTyping && (
-            <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-950/80 px-3.5 py-2 rounded-xl rounded-bl-none w-fit border border-slate-800">
-              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping" />
-              <span>AI Companion is composing response...</span>
+            <div className="flex items-center gap-2 p-3 bg-slate-50 text-slate-500 rounded-2xl rounded-bl-none border border-slate-200/80 w-36">
+              <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse delay-100" />
+              <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse delay-200" />
+              <span className="text-[11px] font-mono ml-1">Thinking...</span>
             </div>
           )}
 
@@ -366,140 +418,118 @@ export const ChatCompanion: React.FC<ChatCompanionProps> = ({
         </div>
 
         {/* Quick Suggestion Chips */}
-        {messages.length <= 2 && (
-          <div className="px-4 py-2 border-t border-slate-800 bg-slate-950/60 flex items-center gap-2 overflow-x-auto">
-            <span className="text-[11px] font-bold text-slate-400 shrink-0">Prompts:</span>
-            {quickPrompts.map((prompt) => (
-              <button
-                key={prompt}
-                onClick={() => handleSendMessage(prompt)}
-                className="text-[11px] px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-200 rounded-full border border-slate-800 shrink-0 transition-colors cursor-pointer"
-              >
-                {prompt}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="px-4 py-2 bg-slate-50/80 border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+          <span className="text-[10px] font-bold text-slate-400 shrink-0 uppercase tracking-wider">
+            Quick Topics:
+          </span>
+          {quickPrompts.map((prompt) => (
+            <button
+              key={prompt}
+              onClick={() => setInput(prompt)}
+              className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 text-[11px] font-medium rounded-lg border border-slate-200 shrink-0 transition-colors cursor-pointer"
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
 
-        {/* Input Bar with Mic STT Voice Input */}
-        <div className="p-3 bg-slate-950/80 border-t border-slate-800 flex items-center gap-2">
-          {/* Microphone Voice-to-Text Button */}
+        {/* Input Bar */}
+        <form
+          onSubmit={handleSend}
+          className="p-3 bg-white border-t border-slate-200 flex items-center gap-2"
+        >
+          {/* Voice Input STT button */}
           <button
             type="button"
             onClick={toggleListening}
-            className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
+            className={`p-2.5 rounded-xl transition-all cursor-pointer ${
               isListening
-                ? 'bg-rose-500/20 text-rose-400 border-rose-500/40 animate-pulse ring-2 ring-rose-500/30'
-                : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800'
+                ? 'bg-rose-600 text-white animate-pulse shadow-xs'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
             }`}
-            title={isListening ? 'Listening (Vulavula STT)... click to stop' : 'Click to Speak (Vulavula Voice-to-Text)'}
+            title={isListening ? (t.chat.listening || 'Listening... Tap to stop') : 'Tap to speak (Voice STT)'}
           >
-            {isListening ? <MicOff className="w-4 h-4 text-rose-400" /> : <Mic className="w-4 h-4 text-indigo-400" />}
+            {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
           </button>
 
           <input
             type="text"
-            placeholder={isListening ? 'Listening in your language... speak now' : `Type in ${currentLang.nativeName} or English...`}
+            placeholder={
+              isListening
+                ? (t.chat.listening || 'Listening to your voice...')
+                : (t.chat.placeholder || `Type in ${currentLang.name} (or English)...`)
+            }
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-            className="flex-1 px-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-700 bg-slate-900 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="flex-1 p-2.5 bg-slate-50 text-slate-900 rounded-xl text-xs sm:text-sm border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
           />
 
           <button
-            onClick={() => handleSendMessage()}
+            type="submit"
             disabled={!input.trim() || isTyping}
-            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold rounded-xl text-xs sm:text-sm flex items-center gap-1.5 transition-all shadow-md shadow-indigo-600/30 cursor-pointer"
+            className="p-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-30 text-white rounded-xl shadow-xs transition-all cursor-pointer"
           >
-            <span>Send</span>
-            <Send className="w-3.5 h-3.5" />
+            <Send className="w-4 h-4 text-emerald-400" />
           </button>
-        </div>
+        </form>
       </div>
 
-      {/* Safety Triage Action Card */}
-      {messages.length >= 3 && !triageResult && (
-        <div className="bg-slate-900/90 border border-slate-800 text-slate-100 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xl backdrop-blur-md">
-          <div>
-            <h4 className="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-400" />
-              Generate AI Triage Assessment?
-            </h4>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Analyzes the conversation to recommend the ideal student support pathway.
-            </p>
+      {/* Triage & Assessment Card */}
+      <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="space-y-0.5">
+          <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+            <Shield className="w-3.5 h-3.5 text-emerald-600" />
+            Safety & Emotional State Triage
           </div>
-          <button
-            onClick={handleRunTriage}
-            disabled={isTriaging}
-            className="w-full sm:w-auto px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all shrink-0 cursor-pointer"
-          >
-            {isTriaging ? 'Reading Conversation...' : 'Get My Triage Report'}
-          </button>
+          <p className="text-[11px] text-slate-500">
+            Generate an instant mental health risk assessment based on this session.
+          </p>
         </div>
-      )}
+
+        <button
+          onClick={handleRunTriage}
+          disabled={isTriaging || messages.length < 2}
+          className="px-4 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-800 text-xs font-bold rounded-xl border border-slate-200 transition-colors cursor-pointer shrink-0"
+        >
+          {isTriaging ? 'Evaluating...' : 'Run Triage Check'}
+        </button>
+      </div>
 
       {/* Triage Results Display */}
       {triageResult && (
-        <div className="bg-slate-900/90 rounded-2xl p-6 border border-slate-800 shadow-xl space-y-4 backdrop-blur-md">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span
-                className={`px-3 py-1 rounded-full text-xs font-bold text-white ${
-                  triageResult.risk === 'high'
-                    ? 'bg-rose-600'
-                    : triageResult.risk === 'medium'
-                    ? 'bg-amber-500 text-slate-950'
-                    : 'bg-emerald-600'
-                }`}
-              >
-                {triageResult.risk.toUpperCase()} PRIORITY
-              </span>
-              <span className="text-xs font-bold text-slate-100">Triage Summary</span>
-            </div>
+        <div
+          className={`p-4 rounded-2xl border text-xs space-y-2 animate-in fade-in ${
+            triageResult.risk === 'high'
+              ? 'bg-rose-50 border-rose-200 text-rose-900'
+              : triageResult.risk === 'medium'
+              ? 'bg-amber-50 border-amber-200 text-amber-900'
+              : 'bg-emerald-50 border-emerald-200 text-emerald-900'
+          }`}
+        >
+          <div className="flex items-center justify-between font-bold">
+            <span className="uppercase font-mono tracking-wider">
+              Triage Classification: {triageResult.risk} Priority
+            </span>
             <button
               onClick={() => setTriageResult(null)}
-              className="text-xs text-slate-400 hover:text-slate-200 cursor-pointer"
+              className="text-[10px] underline hover:opacity-75"
             >
-              Close
+              Dismiss
             </button>
           </div>
-
-          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-            {triageResult.note}
-          </p>
-
-          <div className="pt-3 border-t border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <button
-              onClick={onOpenCoping}
-              className="p-3 rounded-xl bg-slate-950/80 hover:bg-slate-800 text-slate-100 text-xs font-bold text-left transition-colors flex items-center justify-between border border-slate-800 cursor-pointer"
-            >
-              <span>1. Self-Help Coping Suite</span>
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            </button>
-            <button
-              onClick={onOpenPeer}
-              className="p-3 rounded-xl bg-slate-950/80 hover:bg-slate-800 text-slate-100 text-xs font-bold text-left transition-colors flex items-center justify-between border border-slate-800 cursor-pointer"
-            >
-              <span>2. Peer Support Rooms</span>
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            </button>
-            <button
-              onClick={onOpenCounselor}
-              className="p-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-xs font-bold text-left transition-colors flex items-center justify-between border border-rose-500/30 cursor-pointer"
-            >
-              <span>3. Live Counselor / SADAG</span>
-              <PhoneCall className="w-4 h-4" />
-            </button>
-          </div>
+          <p className="leading-relaxed">{triageResult.note}</p>
+          {triageResult.risk === 'high' && (
+            <div className="pt-2 flex items-center gap-3">
+              <button
+                onClick={onOpenCounselor}
+                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-xs"
+              >
+                Reach Counselor Now
+              </button>
+            </div>
+          )}
         </div>
       )}
-
-      {/* Emergency Footer Notice */}
-      <div className="text-center text-[11px] text-slate-500">
-        Not a replacement for clinical psychiatric emergency care. Immediate danger? Call <strong className="text-slate-300">112</strong> or SADAG <strong className="text-slate-300">0800 567 567</strong>.
-      </div>
     </div>
   );
 };
-

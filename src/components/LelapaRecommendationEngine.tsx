@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { ActivityItem, CopingToolAction, MoodType, RecommendationReport, StressorCategory, UserProfile } from '../types';
-import { Sparkles, Brain, Wind, BookOpen, Users, PhoneCall, RefreshCw, AlertCircle, CheckCircle2, ChevronRight, Zap } from 'lucide-react';
+import { Sparkles, Brain, Wind, BookOpen, Users, PhoneCall, RefreshCw, AlertCircle, CheckCircle2, ChevronRight, Zap, ShieldCheck } from 'lucide-react';
 
 interface LelapaRecommendationEngineProps {
   recommendations: RecommendationReport | null;
@@ -26,264 +26,221 @@ export const LelapaRecommendationEngine: React.FC<LelapaRecommendationEngineProp
   const sentiment = recommendations?.sentimentSummary;
 
   const getScoreColor = (score: number) => {
-    if (score < 40) return 'text-[#c3503b]';
-    if (score < 65) return 'text-[#e8a33d]';
-    return 'text-[#4f7c6f]';
-  };
-
-  const getScoreBg = (score: number) => {
-    if (score < 40) return 'bg-[#c3503b]';
-    if (score < 65) return 'bg-[#e8a33d]';
-    return 'bg-[#4f7c6f]';
+    if (score < 40) return 'text-rose-600 bg-rose-50 border-rose-200';
+    if (score < 65) return 'text-amber-700 bg-amber-50 border-amber-200';
+    return 'text-emerald-700 bg-emerald-50 border-emerald-200';
   };
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
       case 'mindfulness':
-        return <Wind className="w-4 h-4 text-[#4f7c6f]" />;
+        return <Wind className="w-4 h-4 text-emerald-600" />;
       case 'grounding':
-        return <Zap className="w-4 h-4 text-[#e8a33d]" />;
+        return <Zap className="w-4 h-4 text-amber-600" />;
       case 'journaling':
-        return <BookOpen className="w-4 h-4 text-[#212b4a]" />;
+        return <BookOpen className="w-4 h-4 text-indigo-600" />;
       case 'peer_support':
-        return <Users className="w-4 h-4 text-[#4f7c6f]" />;
+        return <Users className="w-4 h-4 text-emerald-600" />;
       case 'counselor':
       case 'crisis':
-        return <PhoneCall className="w-4 h-4 text-[#c3503b]" />;
+        return <PhoneCall className="w-4 h-4 text-rose-600" />;
       default:
-        return <Brain className="w-4 h-4 text-[#212b4a]" />;
+        return <Brain className="w-4 h-4 text-slate-700" />;
     }
   };
 
+  const defaultActions: CopingToolAction[] = [
+    {
+      id: 'act_1',
+      title: '2-Minute Box Breathing',
+      reason: 'Slow down heart rate and lower adrenaline before studying.',
+      duration: '2 min',
+      category: 'mindfulness',
+      actionType: 'tool_box_breathing',
+      priority: 'immediate',
+    },
+    {
+      id: 'act_2',
+      title: 'Multilingual Voice Reflection',
+      reason: 'Speak your thoughts freely in your home language.',
+      duration: '3 min',
+      category: 'journaling',
+      actionType: 'tool_journal',
+      priority: 'recommended',
+    },
+    {
+      id: 'act_3',
+      title: 'Connect with Campus Circle',
+      reason: 'See how other students navigate exam pressure.',
+      duration: '5 min',
+      category: 'peer_support',
+      actionType: 'open_peer_room',
+      priority: 'optional',
+    },
+  ];
+
+  const actions: CopingToolAction[] =
+    (recommendations?.recommendedActions && Array.isArray(recommendations.recommendedActions) && recommendations.recommendedActions.length > 0)
+      ? recommendations.recommendedActions
+      : ((recommendations as any)?.suggestedActions && Array.isArray((recommendations as any).suggestedActions))
+      ? (recommendations as any).suggestedActions.map((a: any) => ({
+          id: a.id || 'act_gen',
+          title: a.title || 'Wellness Micro-Action',
+          reason: a.reason || a.description || 'Supportive exercise',
+          duration: a.duration || `${a.durationMinutes || 3} min`,
+          category: a.category || 'mindfulness',
+          actionType: a.actionType || 'tool_box_breathing',
+          priority: a.priority || 'recommended',
+        }))
+      : defaultActions;
+
+  const wellbeingScore = sentiment?.sentimentScore ?? (recommendations as any)?.wellbeingScore ?? 65;
+  const detectedMood = sentiment?.detectedMood || (recommendations as any)?.detectedMood || currentMood || 'Processing...';
+  const primaryFocus = primaryStressor || sentiment?.primaryStressor || (sentiment as any)?.primaryStressors?.[0] || 'Academic Pacing & Exams';
+  const culturalReflection = sentiment?.culturalInsight || (recommendations as any)?.culturalInsight || recommendations?.affirmation;
+
   return (
-    <div className="space-y-6">
-      {/* Lelapa AI Header Card */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-900/95 to-slate-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-800 relative overflow-hidden">
-        {/* Subtle Background Glow */}
-        <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-60 h-60 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
-
-        <div className="relative z-10 space-y-6">
-          {/* Top Row: Tag & Refresh */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="px-3 py-1 bg-emerald-600 text-white rounded-full text-xs font-mono font-bold tracking-wider uppercase flex items-center gap-1.5 shadow-sm">
-                <Brain className="w-3.5 h-3.5" />
-                Vulavula AI Wellness Engine
-              </span>
-              <span className="text-xs text-slate-400 font-medium hidden sm:inline">
-                Real-Time Adaptive Triage
-              </span>
-            </div>
-
-            <button
-              onClick={onRefresh}
-              disabled={isLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-xs font-medium text-slate-200 transition-all border border-slate-700 cursor-pointer"
-              title="Recalculate recommendations from latest activity"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${isLoading ? 'animate-spin' : ''}`} />
-              <span>{isLoading ? 'Analyzing...' : 'Recalculate Radar'}</span>
-            </button>
-          </div>
-
-          {/* Radar Metrics Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-            {/* Metric 1: Detected Sentiment & Wellbeing Score */}
-            <div className="bg-slate-950/60 backdrop-blur-xs rounded-2xl p-4 border border-slate-800 space-y-2">
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>Emotional State</span>
-                <span className="font-mono text-[11px] text-slate-500">Vulavula NLP</span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-slate-100 tracking-tight">
-                  {sentiment?.detectedMood || currentMood || 'Processing...'}
-                </span>
-                {sentiment?.sentimentScore !== undefined && (
-                  <span className={`text-xs font-mono font-bold ${getScoreColor(sentiment.sentimentScore)}`}>
-                    ({sentiment.sentimentScore}/100)
-                  </span>
-                )}
-              </div>
-              {/* Score Bar */}
-              {sentiment?.sentimentScore !== undefined && (
-                <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full transition-all duration-500 rounded-full ${getScoreBg(sentiment.sentimentScore)}`}
-                    style={{ width: `${Math.min(100, Math.max(10, sentiment.sentimentScore))}%` }}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Metric 2: Primary Stressor Factor */}
-            <div className="bg-slate-950/60 backdrop-blur-xs rounded-2xl p-4 border border-slate-800 space-y-2">
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>Primary Context Trigger</span>
-                <span className="font-mono text-[11px] text-slate-500">InkubaLM</span>
-              </div>
-              <div className="text-lg font-bold text-amber-400 truncate">
-                {sentiment?.primaryStressor || primaryStressor || 'Academics & Life'}
-              </div>
-              <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                <span>{recentActivities.length} recent student interactions analyzed</span>
-              </div>
-            </div>
-
-            {/* Metric 3: Safety Risk Priority */}
-            <div className="bg-slate-950/60 backdrop-blur-xs rounded-2xl p-4 border border-slate-800 space-y-2">
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>Safety Triage Status</span>
-                <span className="font-mono text-[11px] text-slate-500">Clinical Safety</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                    sentiment?.riskLevel === 'high'
-                      ? 'bg-rose-500/20 border border-rose-500/40 text-rose-300'
-                      : sentiment?.riskLevel === 'medium'
-                      ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300'
-                      : 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300'
-                  }`}
-                >
-                  {sentiment?.riskLevel === 'high'
-                    ? 'High Priority Escalate'
-                    : sentiment?.riskLevel === 'medium'
-                    ? 'Medium Attention Needed'
-                    : 'Low / Stable State'}
-                </span>
-              </div>
-              <div className="text-[11px] text-slate-400">
-                {sentiment?.riskLevel === 'high'
-                  ? 'SADAG 24/7 hotline 0800 567 567 active'
-                  : 'Self-guided & peer pathways active'}
-              </div>
-            </div>
-          </div>
-
-          {/* Cultural & Context Insight */}
-          {sentiment?.culturalInsight && (
-            <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-4 text-xs text-slate-300 leading-relaxed flex items-start gap-3">
-              <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-bold text-amber-400">Cultural & Ubuntu Context: </span>
-                {sentiment.culturalInsight}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Recommended Next Best Actions Grid */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
+    <div className="space-y-4">
+      {/* Personalized Wellness Insights Card */}
+      <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-xs border border-slate-200/80 space-y-6">
+        {/* Top Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
           <div>
-            <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-emerald-400" />
-              Personalized Coping Toolkit (Real-Time)
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 bg-slate-900 text-white rounded-md text-[11px] font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-xs">
+                <Brain className="w-3.5 h-3.5 text-emerald-400" />
+                Adaptive Wellness Radar
+              </span>
+              <span className="text-xs text-slate-500 font-medium hidden sm:inline">
+                Continuously learning from your check-ins & reflections
+              </span>
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mt-1">
+              Personalized Student Wellness Insights
             </h3>
-            <p className="text-xs text-slate-400">
-              Curated by AI Wellness Engine based on your recent activity, stress level, and language preference.
+          </div>
+
+          <button
+            onClick={onRefresh}
+            disabled={isLoading}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700 transition-all border border-slate-200 cursor-pointer"
+            title="Recalculate recommendations from latest activity"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isLoading ? 'animate-spin' : ''}`} />
+            <span>{isLoading ? 'Analyzing...' : 'Refresh Insights'}</span>
+          </button>
+        </div>
+
+        {/* 3 Metric Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Card 1: Emotional State */}
+          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/70 space-y-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              Detected Emotional State
+            </span>
+            <div className="flex items-baseline gap-2 pt-1">
+              <span className="text-xl font-bold text-slate-900">
+                {detectedMood}
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 leading-tight">
+              {(sentiment as any)?.trendAnalysis || 'Based on your recent check-in pulse and journal logs.'}
+            </p>
+          </div>
+
+          {/* Card 2: Resilience Index */}
+          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/70 space-y-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              Wellbeing & Resilience Index
+            </span>
+            <div className="flex items-baseline gap-2 pt-1">
+              <span className="text-2xl font-bold font-mono text-slate-900">
+                {wellbeingScore}
+              </span>
+              <span className="text-xs text-slate-500 font-mono">/ 100</span>
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${getScoreColor(wellbeingScore)}`}>
+                {wellbeingScore >= 65 ? 'Resilient' : wellbeingScore >= 40 ? 'Moderate Strain' : 'Support Needed'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 leading-tight">
+              Continuously calibrated through coping practices and self-reflections.
+            </p>
+          </div>
+
+          {/* Card 3: Key Area of Focus */}
+          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/70 space-y-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              Primary Life Area
+            </span>
+            <div className="pt-1">
+              <span className="text-base font-bold text-slate-900">
+                {primaryFocus}
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 leading-tight">
+              Focusing micro-coping tools and peer stories around this stressor.
             </p>
           </div>
         </div>
 
-        {recommendations?.recommendedActions && recommendations.recommendedActions.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {recommendations.recommendedActions.map((action) => (
-              <div
-                key={action.id}
-                onClick={() => onSelectAction(action.actionType)}
-                className={`group bg-slate-900/90 rounded-2xl p-5 border transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl flex flex-col justify-between ${
-                  action.priority === 'immediate'
-                    ? 'border-rose-500/40 hover:border-rose-500 bg-gradient-to-b from-slate-900 to-rose-950/20'
-                    : action.priority === 'recommended'
-                    ? 'border-emerald-500/30 hover:border-emerald-500'
-                    : 'border-slate-800 hover:border-slate-700'
-                }`}
-              >
-                <div className="space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <div className="w-8 h-8 rounded-xl bg-slate-800 flex items-center justify-center border border-slate-700/60">
-                      {getCategoryIcon(action.category)}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700">
-                        {action.duration}
-                      </span>
-                      {action.priority === 'immediate' && (
-                        <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md bg-rose-500 text-white">
-                          Priority
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-100 group-hover:text-emerald-400 transition-colors line-clamp-1">
-                      {action.title}
-                    </h4>
-                    <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
-                      {action.reason}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="pt-4 mt-2 border-t border-slate-800/80 flex items-center justify-between text-xs font-bold text-emerald-400 group-hover:translate-x-0.5 transition-transform">
-                  <span>Start Activity</span>
-                  <ChevronRight className="w-4 h-4" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="p-8 text-center bg-slate-900/60 rounded-2xl border border-slate-800 text-xs text-slate-400">
-            Loading personalized recommendations...
-          </div>
-        )}
-      </div>
-
-      {/* Matched Peer Support Room & Daily Affirmation */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Peer Support Recommendation */}
-        {recommendations?.peerCircleRecommendation && (
-          <div
-            onClick={() => onSelectAction('open_peer_room')}
-            className="bg-slate-900/90 rounded-2xl p-5 border border-slate-800 hover:border-emerald-500 transition-all cursor-pointer shadow-lg space-y-3 group"
-          >
-            <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
-              <Users className="w-4 h-4" />
-              <span>Recommended Peer Circle</span>
+        {/* Culturally Grounded Insight Message */}
+        {culturalReflection && (
+          <div className="p-4 bg-emerald-50/60 rounded-2xl border border-emerald-200/80 flex items-start gap-3">
+            <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+              <Sparkles className="w-3.5 h-3.5" />
             </div>
-            <div>
-              <h4 className="text-sm font-bold text-slate-100 group-hover:text-emerald-400 transition-colors">
-                {recommendations.peerCircleRecommendation.topic}
+            <div className="space-y-0.5">
+              <h4 className="text-xs font-bold text-emerald-950">
+                Culturally Grounded Reflection & Strength
               </h4>
-              <p className="text-xs text-slate-400 mt-1">
-                {recommendations.peerCircleRecommendation.whyMatch}
+              <p className="text-xs text-emerald-900 leading-relaxed">
+                {culturalReflection}
               </p>
             </div>
-            <div className="flex items-center gap-1 text-xs font-bold text-emerald-400">
-              <span>Join Anonymous Student Room</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </div>
           </div>
         )}
 
-        {/* Daily Affirmation */}
-        <div className="bg-gradient-to-br from-slate-900 to-slate-950 rounded-2xl p-5 border border-slate-800 space-y-2 flex flex-col justify-between shadow-lg">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-bold text-amber-400">
-              <Sparkles className="w-4 h-4" />
-              <span>Daily AI Affirmation</span>
-            </div>
-            <p className="text-xs italic text-slate-200 mt-2 leading-relaxed">
-              "{recommendations?.affirmation || 'You are stronger than the stress of this moment. Take one slow breath at a time.'}"
-            </p>
+        {/* Recommended Actions List */}
+        <div className="space-y-3 pt-2">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+              Suggested Micro-Actions for You Right Now
+            </h4>
+            <span className="text-xs text-slate-500">
+              {actions.length} tailored {actions.length === 1 ? 'option' : 'options'}
+            </span>
           </div>
-          <div className="text-[11px] text-slate-500 pt-2 border-t border-slate-800">
-            Dedicated for {userProfile.isAnonymous ? 'Anonymous Student' : userProfile.displayName}
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {actions.map((action) => (
+              <div
+                key={action.id}
+                className="bg-slate-50 hover:bg-slate-100/80 rounded-2xl p-4 border border-slate-200/80 flex flex-col justify-between space-y-3 transition-colors"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="p-2 rounded-xl bg-white border border-slate-200 shadow-xs">
+                      {getCategoryIcon(action.category)}
+                    </div>
+                    <span className="text-[10px] font-mono font-bold text-slate-500">
+                      {action.duration || `${(action as any).durationMinutes || 2} min`}
+                    </span>
+                  </div>
+                  <h5 className="text-xs font-bold text-slate-900">{action.title}</h5>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    {action.reason || (action as any).description}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => onSelectAction(action.actionType)}
+                  className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs"
+                >
+                  <span>Start Activity</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       </div>
